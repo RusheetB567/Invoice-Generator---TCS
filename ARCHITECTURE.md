@@ -2,7 +2,7 @@
 
 ## Current milestone
 
-The TCS interface and local invoice editor work. Saved invoices, branding and reminder preferences currently use browser storage. There is no cloud persistence, authentication, OCR, email delivery or direct PDF renderer yet. The Prisma schema is validated; it has not been migrated to a running database.
+The TCS interface and local invoice editor work. Creator drafts, branding and reminder preferences use browser storage. The document inbox now supports local extraction/OCR, review, embedded PostgreSQL persistence and Excel export; see RECORDS-VAULT.md. There is no cloud persistence, authentication, email delivery or direct invoice PDF renderer yet. The Prisma multi-tenant schema remains a validated design, separate from the local vault adapter.
 
 ## Architecture
 
@@ -38,6 +38,8 @@ Validate extension, MIME signature, size and ownership → save private document
 Each stage has a service boundary. Failures retain the uploaded document and a safe error code; retrying must be idempotent. A queued worker can replace synchronous processing later. No invoice candidate enters reports before confirmation.
 
 ## Delivery order
+
+The document inbox, local OCR/review, embedded database and Excel export have now been implemented as a development-only milestone at the user's request. Their shared/cloud versions still require the authentication and ownership work below.
 
 1. **Complete:** interface refinements, flexible editor, local draft compatibility, shared maths and tests, initial schema.
 2. **Next:** connect PostgreSQL, review/apply migrations, add authentication, sessions, memberships and business profile. Verify cross-business isolation before enabling cloud invoice writes.

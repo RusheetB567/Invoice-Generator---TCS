@@ -2,6 +2,8 @@
 
 `prisma/schema.prisma` is the initial PostgreSQL design, validated with Prisma 7.10.0. No live database migration has been applied. Empty migration directories are not a migration history.
 
+The upload milestone separately uses a local embedded PostgreSQL/PGlite adapter with a `vault_documents` JSONB table. Its originals and data directory are under ignored `storage/`. It is a single-process development adapter, not the Prisma multi-tenant database. See RECORDS-VAULT.md for migration and backup boundaries.
+
 | Entity | Purpose |
 | --- | --- |
 | User, Session, Account, Verification | Auth provider identities, sessions and expiring verification/reset records |

@@ -1,6 +1,6 @@
 # API organisation
 
-There are no authenticated business APIs yet. Local browser storage is the current persistence implementation.
+There are no authenticated business APIs yet. Creator drafts use browser storage; local document-vault APIs now persist reviewed uploads in embedded PostgreSQL. See RECORDS-VAULT.md for the implemented endpoints and development-only boundary.
 
 Planned route handlers are thin adapters around validated services:
 

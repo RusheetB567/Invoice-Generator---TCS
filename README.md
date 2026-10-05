@@ -10,7 +10,7 @@ A personalised invoice workspace by The Code Squad, built with Next.js, React an
 - Browser-local saving, editing, invoice statuses and reusable branding.
 - Browser print / save as PDF, hover effects, preview zoom and reduced-motion support.
 
-Reminder configuration does not send email. Reference attachments show names only. Authentication, database persistence, direct PDF download, uploads, OCR and exports are future milestones. Do not use the current build as a public multi-user financial service.
+The document inbox now supports local PDF/image reading, review, embedded PostgreSQL storage, Australian record classifications and Excel export. See [RECORDS-VAULT.md](RECORDS-VAULT.md) for the verified workflow and limits. Creator drafts remain browser-local. Reminder configuration does not send email; creator reference attachments show names only. Authentication and public multi-user storage remain future milestones.
 
 ## Development
 

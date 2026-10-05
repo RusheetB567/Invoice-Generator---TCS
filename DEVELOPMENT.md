@@ -2,7 +2,7 @@
 
 Keep the Desktop `invoiceflow` project as the main application; `landing-stage` is the review copy. Back up source files before applying reviewed changes. Do not copy `.next`, dependency junctions, browser data or screenshots into the application.
 
-Current checks: ESLint, TypeScript, production build, calculation tests, desktop/mobile UI checks and local save/reopen compatibility. The tests use Node's built-in runner, with process isolation disabled for this Windows environment.
+Current checks: ESLint, TypeScript, production build, calculation/tax-selection/upload-guard/Excel-round-trip/database-persistence tests, desktop/mobile UI checks and save/reopen compatibility. Tests use Node's built-in runner with the tsx loader. Worker-process permissions may be needed on this Windows environment.
 
 ```powershell
 npm run lint

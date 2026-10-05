@@ -9,6 +9,8 @@ const navigation = [
   { href: "/workspace", label: "Overview", glyph: "◈" },
   { href: "/invoices", label: "Invoices", glyph: "▤" },
   { href: "/create", label: "Create invoice", glyph: "+" },
+  { href: "/upload", label: "Document inbox", glyph: "↥" },
+  { href: "/records", label: "Tax records", glyph: "◫" },
   { href: "/settings", label: "Brand studio", glyph: "✦" },
   { href: "/reminders", label: "Reminders", glyph: "◷" },
 ];
@@ -19,7 +21,7 @@ export default function AppShell({ title, subtitle, children }: { title: string;
   const frame = useRef<number | null>(null);
   const pointerEnabled = useRef(false);
   const pendingPointer = useRef<{ x: number; y: number; surface: HTMLElement | null } | null>(null);
-  const sectionLabel = navigation.find(item => item.href === pathname)?.label ?? title;
+  const sectionLabel = navigation.find(item => item.href === pathname || pathname.startsWith(`${item.href}/`))?.label ?? title;
 
   useEffect(() => {
     const finePointer = window.matchMedia("(hover: hover) and (pointer: fine)");
@@ -74,7 +76,7 @@ export default function AppShell({ title, subtitle, children }: { title: string;
         </Link>
         <div className={styles.spaceLabel}><span className={styles.statusDot} /> YOUR WORKSPACE <span className={styles.version}>01</span></div>
         <nav className={styles.nav} aria-label="Workspace navigation">
-          {navigation.map(({ href, label, glyph }) => <Link key={href} href={href} className={`${styles.navLink} ${pathname === href ? styles.active : ""}`} aria-current={pathname === href ? "page" : undefined}><span className={styles.navGlyph} aria-hidden="true">{glyph}</span>{label}<span className={styles.navArrow} aria-hidden="true">↗</span></Link>)}
+          {navigation.map(({ href, label, glyph }) => <Link key={href} href={href} className={`${styles.navLink} ${pathname === href || pathname.startsWith(`${href}/`) ? styles.active : ""}`} aria-current={pathname === href || pathname.startsWith(`${href}/`) ? "page" : undefined}><span className={styles.navGlyph} aria-hidden="true">{glyph}</span>{label}<span className={styles.navArrow} aria-hidden="true">↗</span></Link>)}
         </nav>
         <div className={styles.sidebarBottom}>
           <div className={styles.studioCard} data-glow="true"><span>YOUR BRAND. YOUR RULES.</span><p>A little more you.<br />A lot less admin.</p><Link href="/settings">Make it yours <span aria-hidden="true">↗</span></Link></div>
@@ -87,7 +89,7 @@ export default function AppShell({ title, subtitle, children }: { title: string;
         <main key={pathname} id="workspace-content" className={styles.content}>
           <div className={styles.pageHeading}><div><span className={styles.eyebrow}>TCS / INVOICEFLOW</span><h1>{title}</h1>{subtitle && <p>{subtitle}</p>}</div><div className={styles.headingDecoration} aria-hidden="true">✦</div></div>
           {children}
-          <footer className={styles.footer}><span>CRAFTED BY THE CODE SQUAD</span><span>Local browser storage · No cloud sync yet</span></footer>
+          <footer className={styles.footer}><span>CRAFTED BY THE CODE SQUAD</span><span>Local development · Browser drafts + records vault</span></footer>
         </main>
       </div>
     </div>
