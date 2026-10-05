@@ -24,6 +24,9 @@ export const DRAFTS_KEY = "tcs-invoiceflow-drafts";
 export const BRAND_KEY = "tcs-invoiceflow-brand";
 export const REMINDERS_KEY = "tcs-invoiceflow-reminders";
 export const CHANGE_EVENT = "tcs-invoiceflow-change";
+let workspaceScope: string | null = null;
+export function setWorkspaceScope(scope: string | null) { workspaceScope = scope; }
+const scopedKey = (key: string) => workspaceScope ? `${key}:${workspaceScope}` : null;
 
 const record = (value: unknown): value is Record<string, unknown> => typeof value === "object" && value !== null && !Array.isArray(value);
 const text = (value: unknown, max = 10000): value is string => typeof value === "string" && value.length <= max;
@@ -64,7 +67,9 @@ function isReminders(value: unknown): value is ReminderSettings {
 }
 function rawValue(key: string): string | null {
   if (typeof window === "undefined") return null;
-  try { return window.localStorage.getItem(key); } catch { return null; }
+  const scoped = scopedKey(key);
+  if (!scoped) return null;
+  try { return window.localStorage.getItem(scoped); } catch { return null; }
 }
 function parse(raw: string | null): unknown {
   if (!raw) return null;
@@ -109,7 +114,9 @@ export function readBrand(): BrandSettings | null {
 }
 function write(key: string, value: unknown) {
   if (typeof window === "undefined") throw new Error("Local saving is available in your browser only.");
-  try { window.localStorage.setItem(key, JSON.stringify(value)); }
+  const scoped = scopedKey(key);
+  if (!scoped) throw new Error("Open your business workspace before saving.");
+  try { window.localStorage.setItem(scoped, JSON.stringify(value)); }
   catch (error) {
     const quota = error instanceof DOMException && ["QuotaExceededError", "NS_ERROR_DOM_QUOTA_REACHED"].includes(error.name);
     throw new Error(quota ? "Your browser storage is full. Remove unused drafts or use a smaller logo, then try again." : "This browser cannot save local data. Check its storage or privacy settings and try again.");

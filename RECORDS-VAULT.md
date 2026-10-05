@@ -16,9 +16,9 @@ Excel export contains Overview and Records sheets with typed amounts, preserved 
 
 PGlite provides embedded PostgreSQL for this single-process development milestone. It stores document/review records in JSONB. Private originals are stored separately under `storage/tax-vault/documents`; the database lives under `storage/tax-vault/postgres`. Both are ignored by Git. Back up the complete storage directory while the development server is stopped. Do not open the same PGlite directory from multiple application processes.
 
-The main app and review app use separate storage directories. Test records are not copied into the main app. These routes explicitly refuse production mode and non-localhost requests; mutations also reject cross-origin requests and require the local application header. This is a local development boundary, not authenticated multi-tenant security.
+The main app and review app use separate storage directories. Test records are not copied into the main app. These routes explicitly refuse production mode and non-localhost requests; mutations also reject cross-origin requests and require the local application header. This local boundary remains, and authenticated membership checks now scope every operation to the current business; see ACCOUNTS-WORKSPACES.md.
 
-Before cloud release, migrate the adapter to managed PostgreSQL, map records into the Prisma business schema, add authenticated memberships to every query, move originals to private object storage, add audit/version history and background extraction jobs, and test access isolation. The existing creator still saves its drafts in browser storage; this milestone does not silently transfer them.
+Before cloud release, migrate the adapter to managed PostgreSQL, map records into the Prisma business schema, preserve the implemented authenticated membership checks, move originals to private object storage, add audit/version history and background extraction jobs, and test access isolation. The existing creator still saves its drafts in browser storage; this milestone does not silently transfer them.
 
 ## Local API
 
@@ -39,3 +39,4 @@ Australian record keeping: https://business.gov.au/finance/payments-and-invoicin
 GST credit guidance: https://www.ato.gov.au/businesses-and-organisations/gst-excise-and-indirect-taxes/gst/claiming-gst-credits
 
 PGlite persistence: https://pglite.dev/docs/filesystems
+

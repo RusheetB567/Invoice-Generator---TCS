@@ -1,6 +1,6 @@
 # Database foundation
 
-`prisma/schema.prisma` is the initial PostgreSQL design, validated with Prisma 7.10.0. No live database migration has been applied. Empty migration directories are not a migration history.
+`prisma/schema.prisma` is the initial PostgreSQL design, validated with Prisma 7.10.0. This Prisma design has not been applied. The live local SQL migration in lib/server/account-migration.ts now creates auth, workspace, membership, contact and enquiry tables and adds workspace ownership to documents; see ACCOUNTS-WORKSPACES.md. Empty migration directories are not a migration history.
 
 The upload milestone separately uses a local embedded PostgreSQL/PGlite adapter with a `vault_documents` JSONB table. Its originals and data directory are under ignored `storage/`. It is a single-process development adapter, not the Prisma multi-tenant database. See RECORDS-VAULT.md for migration and backup boundaries.
 
@@ -24,3 +24,4 @@ Membership and business filters are mandatory on every server query, including d
 Financial records use archive/cancel in normal flows. Avoid deleting memberships referenced by invoices; disable access instead. A separate audited data-retention/deletion workflow will be required before public launch. Audit events and export jobs will be added when those services are implemented, rather than creating unused tables now.
 
 Browser drafts are not automatically database records. Provide an explicit validated import after login, recompute totals server-side, preserve content/order, and show a review before transfer. Never clear local drafts until the server confirms successful import.
+

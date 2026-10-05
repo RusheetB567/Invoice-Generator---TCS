@@ -11,7 +11,11 @@ npm run test
 npm run build -- --webpack
 ```
 
-## Next milestone: database and authentication
+## Implemented local authentication
+
+See ACCOUNTS-WORKSPACES.md and PRODUCT-AUDIT.md. Signup → workspace creation → organisation onboarding → private dashboard works locally. Do not commit, push or sync automatically; the user handles those actions after review.
+
+## Next milestone: production database and email
 
 1. Choose local or hosted PostgreSQL. Configure its connection privately in `.env`; do not paste passwords into chat.
 2. Install matching Prisma 7 CLI/client and PostgreSQL adapter versions. Configure `prisma.config.ts` using the official guide and verify connection pooling for the selected host.
@@ -22,3 +26,4 @@ npm run build -- --webpack
 Suggested milestone commit after source review: `feat: refine TCS invoice studio and establish SaaS foundation`.
 
 Do not stage unrelated user changes, commit secrets or treat schema validation as proof that a live migration succeeded.
+

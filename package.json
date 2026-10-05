@@ -10,8 +10,11 @@
     "test": "node --import tsx --test --test-isolation=none tests/*.test.mjs"
   },
   "dependencies": {
+    "@better-auth/drizzle-adapter": "^1.7.7",
     "@electric-sql/pglite": "^0.5.8",
     "@tesseract.js-data/eng": "^1.0.0",
+    "better-auth": "^1.7.7",
+    "drizzle-orm": "^0.45.3",
     "exceljs": "^4.4.0",
     "next": "16.3.8",
     "pdf-parse": "^2.4.5",

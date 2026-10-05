@@ -5,6 +5,8 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { Suspense, useRef, useState, useSyncExternalStore, type CSSProperties } from "react";
 import AppShell from "../components/app-shell";
+import { useWorkspace } from "../components/workspace-provider";
+import ClientPicker from "../components/client-picker";
 import { readBrand, saveDraft, useBrand, useDrafts, type BrandSettings, type Draft } from "../../lib/local-data";
 import { brandForeground } from "../../lib/brand-colour";
 import { hundredths, lineTotal, taxTotal } from "../../lib/domain/invoice-math";
@@ -56,11 +58,12 @@ function formFromDraft(draft?: Draft, sample = false, savedBrand?: BrandSettings
 }
 
 function InvoiceEditor({ startingDraft, missingDraft, sample, savedBrand }: { startingDraft?: Draft; missingDraft: boolean; sample: boolean; savedBrand: BrandSettings | null }) {
+  const workspace = useWorkspace();
   const [form, setForm] = useState(() => formFromDraft(startingDraft, sample, savedBrand));
   const [format, setFormat] = useState<"sections" | "table">(startingDraft ? startingDraft.format ?? "table" : sample ? "table" : "sections");
   const [items, setItems] = useState(() => (startingDraft?.items ?? (sample ? seedItems : [])).map(item => ({ ...item })));
   const [sections, setSections] = useState<BillingSection[]>(() => (startingDraft?.sections ?? [emptySection]).map(section => ({ ...section })));
-  const [currency, setCurrency] = useState<Currency>((startingDraft?.currency as Currency) ?? "AUD");
+  const [currency, setCurrency] = useState<Currency>((startingDraft?.currency as Currency) ?? (sample ? "AUD" : workspace?.workspace.profile.currency || "AUD"));
   const [logo, setLogo] = useState(startingDraft?.logo ?? (!sample ? savedBrand?.logo ?? "" : ""));
   const [logoError, setLogoError] = useState("");
   const [logoLoading, setLogoLoading] = useState(false);
@@ -156,6 +159,7 @@ function InvoiceEditor({ startingDraft, missingDraft, sample, savedBrand }: { st
     dueDate.setDate(dueDate.getDate() + 7);
     const localDate = (date: Date) => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
     setForm({ ...formFromDraft(undefined, false, savedBrand), issued: localDate(today), due: localDate(dueDate) });
+    setCurrency(workspace?.workspace.profile.currency || "AUD");
     setFormat("sections"); setItems([]); setSections([{ ...emptySection, id: nextId.current++ }]); setShowValidation(false);
     setLogo(savedBrand?.logo ?? ""); setLogoError(""); setLogoLoading(false); setZoom(100);
     setOpenGroups(["business", "customer", "services"]);
@@ -240,6 +244,7 @@ function InvoiceEditor({ startingDraft, missingDraft, sample, savedBrand }: { st
             </details>
           </fieldset></details>
           <details id="customer" className={styles.editGroup} open={openGroups.includes("customer")}>{groupHeading("customer", "02", "Invoice details", form.customer || "Customer, number, dates, and currency")}<fieldset><legend className={styles.srOnly}>Customer and invoice details</legend>
+            <ClientPicker onChoose={contact=>setForm(current=>({...current,customer:contact.name,customerAddress:contact.address}))} />
             {field("customer", "Bill to")}
             <div className={styles.pair}>{field("number", "Invoice number")}<label className={styles.field}><span>Currency</span><select value={currency} onChange={event => setCurrency(event.target.value as Currency)}>{Object.keys(currencies).map(code => <option key={code} value={code}>{code}</option>)}</select></label></div>
             <p className={styles.hint}>Changing currency relabels your prices; it does not convert them.</p>
@@ -326,3 +331,4 @@ function DraftResolver() {
 export default function CreateInvoice() {
   return <Suspense fallback={<AppShell title="Invoice studio"><p role="status">Opening your invoice studio…</p></AppShell>}><DraftResolver /></Suspense>;
 }
+

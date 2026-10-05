@@ -1,6 +1,6 @@
 # API organisation
 
-There are no authenticated business APIs yet. Creator drafts use browser storage; local document-vault APIs now persist reviewed uploads in embedded PostgreSQL. See RECORDS-VAULT.md for the implemented endpoints and development-only boundary.
+Authenticated local business APIs are now implemented: `/api/auth/*`, `/api/workspace`, `/api/contacts`, `/api/enquiries` and workspace-scoped `/api/vault/*`. See ACCOUNTS-WORKSPACES.md for session/role checks and API boundaries. Creator drafts use browser storage; local document-vault APIs now persist reviewed uploads in embedded PostgreSQL. See RECORDS-VAULT.md for the implemented endpoints and development-only boundary.
 
 Planned route handlers are thin adapters around validated services:
 
@@ -16,3 +16,4 @@ Planned route handlers are thin adapters around validated services:
 Each route obtains a server session, verifies membership, validates input, calls a service and returns a safe response. Use 401 for missing session, 404 for inaccessible resources, 422 for invalid inputs and 409 for revision/number conflicts. Never leak another business's existence through error messages.
 
 Serialize monetary integers as decimal strings in JSON. Use ISO date-only strings for billing dates, UTC timestamps for events. Never accept client totals as authoritative. Avoid returning object storage paths or raw provider errors.
+

@@ -1,6 +1,6 @@
 # Security delivery requirements
 
-The current build is a local browser prototype. It has no authenticated server record API. These controls are acceptance criteria for the shared service, not claims about completed implementation.
+The local build now uses Better Auth database sessions and server membership checks for document, profile, directory and enquiry APIs. Browser drafts are scoped by account/business, but remain local. See ACCOUNTS-WORKSPACES.md for completed controls, verification and the fail-closed production boundary. The remaining controls below are acceptance criteria for a shared cloud service.
 
 - Authenticate on the server and resolve authorised business membership for every operation. Never trust a client-provided user/business ID by itself.
 - Use the auth library for password hashing, secure cookies, session rotation and verification/reset token handling. Require verification before production access.
@@ -13,3 +13,4 @@ The current build is a local browser prototype. It has no authenticated server r
 - Back up database/object storage; test restoration and retention workflows. Audit material changes once server writes exist.
 
 Automated access-control, upload, authentication and integration tests are required before deployment with real user data.
+

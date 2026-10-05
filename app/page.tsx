@@ -47,7 +47,7 @@ export default function Home() {
       <header className={styles.header}>
         <Link href="/" className={styles.brand} aria-label="The Code Squad InvoiceFlow home"><span className={styles.brandIcon} aria-hidden="true">{"</>"}</span><span><strong>THE CODE SQUAD</strong><small>INVOICEFLOW</small></span></Link>
         <nav aria-label="Main navigation"><a href="#experience">Experience</a><a href="#workflow">How it works</a><Link href="/workspace">Workspace</Link></nav>
-        <Link href="/create" className={styles.headerButton}>Launch creator <span aria-hidden="true">↗</span></Link>
+        <Link href="/sign-up" className={styles.headerButton}>Create account <span aria-hidden="true">↗</span></Link>
       </header>
       <main id="main">
         <section className={styles.hero} aria-labelledby="hero-title">
@@ -57,7 +57,7 @@ export default function Home() {
             <h1 id="hero-title">Your work.<br />Your identity.<br /><span>Beautifully billed.</span></h1>
             <p className={styles.intro}>Turn the work you do into an invoice that feels like you. Your logo. Your colours. Every detail in your control.</p>
             <div className={styles.actions}><Link href="/create" className={styles.primary}>Make your first invoice <span aria-hidden="true">↗</span></Link><a href="#experience" className={styles.textLink}>Explore the experience <span aria-hidden="true">↓</span></a></div>
-            <p className={styles.helper}>Start in your browser. No account needed for this preview.</p>
+            <p className={styles.helper}>Create your account, personalise your business, and open your private workspace. <Link href="/sign-in">Already a member? Sign in</Link></p>
           </div>
           <div className={styles.showcase} onPointerMove={hover} onPointerLeave={event => {event.currentTarget.style.setProperty("--tilt-x","0deg"); event.currentTarget.style.setProperty("--tilt-y","0deg");}}>
             <div className={styles.showcaseTop}><span><i />YOUR INVOICE. REIMAGINED.</span><span>LIVE PREVIEW</span></div>

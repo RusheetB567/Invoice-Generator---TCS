@@ -2,7 +2,7 @@
 
 ## Current milestone
 
-The TCS interface and local invoice editor work. Creator drafts, branding and reminder preferences use browser storage. The document inbox now supports local extraction/OCR, review, embedded PostgreSQL persistence and Excel export; see RECORDS-VAULT.md. There is no cloud persistence, authentication, email delivery or direct invoice PDF renderer yet. The Prisma multi-tenant schema remains a validated design, separate from the local vault adapter.
+The TCS interface and local invoice editor work. Creator drafts, branding and reminder preferences use browser storage. The document inbox now supports local extraction/OCR, review, embedded PostgreSQL persistence and Excel export; see RECORDS-VAULT.md. Local Better Auth sessions, business onboarding, membership checks, contact directories and workspace-scoped records are implemented; see ACCOUNTS-WORKSPACES.md. There is no cloud persistence, email delivery or direct invoice PDF renderer yet. The Prisma multi-tenant schema remains a validated design, separate from the local vault adapter.
 
 ## Architecture
 
@@ -28,7 +28,7 @@ tests/               Calculation tests now; access-control/integration tests nex
 - Freeze issuer, recipient and branding snapshots on an invoice. Editing a business or contact must not rewrite historical invoice contents. Use revisions to reject conflicting edits.
 - Use internal IDs independently of invoice numbers. Reserve generated numbers atomically within a business. A database migration must enforce unique issued numbers per business; received numbers can repeat between suppliers.
 - Derive overdue from due date, remaining balance and cancellation state. Payments are separate records. Lock the invoice when adding a payment to prevent concurrent overpayment.
-- Prefer Better Auth with database sessions and email verification/reset delivery for the next milestone; do not implement custom password hashing. Prisma 7 is the supported Better Auth integration baseline. Confirm installed library compatibility before wiring it.
+- Better Auth with the official Drizzle adapter now manages local database sessions and password hashing. Email verification/reset delivery remains deferred. The wider Prisma design is not applied; reconcile it with the live mappings before choosing one production ORM.
 - Use private local storage during development and an S3-compatible adapter in production. PostgreSQL stores keys, hashes and metadata, not uploaded binary files.
 
 ## Document pipeline
@@ -42,7 +42,7 @@ Each stage has a service boundary. Failures retain the uploaded document and a s
 The document inbox, local OCR/review, embedded database and Excel export have now been implemented as a development-only milestone at the user's request. Their shared/cloud versions still require the authentication and ownership work below.
 
 1. **Complete:** interface refinements, flexible editor, local draft compatibility, shared maths and tests, initial schema.
-2. **Next:** connect PostgreSQL, review/apply migrations, add authentication, sessions, memberships and business profile. Verify cross-business isolation before enabling cloud invoice writes.
+2. **Complete locally:** embedded PostgreSQL/Drizzle auth mapping, sessions, memberships, business profile and access-isolation tests. **Next:** production PostgreSQL/object storage and reconciled migrations before cloud writes.
 3. Contacts and persisted invoice CRUD, server validation, numbering and payment records.
 4. Direct PDF rendering, generation/version storage and download.
 5. Private uploads, PDF text extraction, OCR adapter and human review.
@@ -56,3 +56,4 @@ Keep each milestone runnable. Do not describe planned services as working featur
 Prisma's supported integration guide: https://www.prisma.io/docs/guides/authentication/better-auth/nextjs
 
 Better Auth Next.js integration: https://better-auth.com/docs/integrations/next
+

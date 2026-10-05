@@ -50,17 +50,20 @@ test('vault retains exact originals, deduplicates files and confirms a record on
   process.env.INVOICEFLOW_DATA_DIR=directory;
   let db;
   try {
+    db=await database();
+    const workspaceId='00000000-0000-4000-8000-000000000001';
+    await db.query('INSERT INTO business_workspace(id,name,onboarding_complete) VALUES($1,$2,true)',[workspaceId,'Fixture business']);
     const bytes=Buffer.from('Disposable original document fixture');
     const candidate={supplier:'Example',number:'1',issued:'2026-07-01',total:'11.00',gst:'1.00'};
     const value={name:'fixture.pdf',mime:'application/pdf',status:'Review',method:'Manual review',text:'',candidate,notice:'',record:null};
-    const first=await storeDocument(bytes,value), duplicate=await storeDocument(bytes,value);
+    const first=await storeDocument(workspaceId,bytes,value), duplicate=await storeDocument(workspaceId,bytes,value);
     assert.equal(duplicate.duplicate,true); assert.equal(duplicate.document.id,first.document.id);
-    assert.deepEqual(await originalFile(first.document.id),bytes);
-    assert.equal((await listDocuments()).length,1); assert.equal(first.document.record,null);
+    assert.deepEqual(await originalFile(workspaceId,first.document.id),bytes);
+    assert.equal((await listDocuments(workspaceId)).length,1); assert.equal(first.document.record,null);
     const record={...candidate,kind:'Expense',category:'Other',treatment:'GST included',businessPercent:'100',gstRegistered:true,claimGst:true,notes:'',currency:'AUD',confirmed:true};
-    assert.equal((await confirmDocument(first.document.id,record)).status,'Confirmed');
-    await assert.rejects(()=>confirmDocument(first.document.id,record),error=>error.status===409);
-    assert.equal((await listDocuments())[0].record.total,'11.00');
+    assert.equal((await confirmDocument(workspaceId,first.document.id,record)).status,'Confirmed');
+    await assert.rejects(()=>confirmDocument(workspaceId,first.document.id,record),error=>error.status===409);
+    assert.equal((await listDocuments(workspaceId))[0].record.total,'11.00');
     db=await database();
   } finally {
     if(db) await db.close();

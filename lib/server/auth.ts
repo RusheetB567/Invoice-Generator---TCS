@@ -1,0 +1,122 @@
+import { betterAuth } from "better-auth";
+import { drizzleAdapter } from "@better-auth/drizzle-adapter";
+import { drizzle } from "drizzle-orm/pglite";
+import { readFile, writeFile } from "node:fs/promises";
+import { randomBytes } from "node:crypto";
+import path from "node:path";
+import { database, dataDirectory, VaultError } from "./vault";
+import * as schema from "./auth-schema";
+import { z } from "zod";
+
+async function signingSecret() {
+  if (process.env.BETTER_AUTH_SECRET) {
+    if (process.env.BETTER_AUTH_SECRET.length < 32)
+      throw new VaultError(
+        "Authentication requires a secret of at least 32 characters.",
+        503,
+      );
+    return process.env.BETTER_AUTH_SECRET;
+  }
+  if (process.env.NODE_ENV !== "development" && process.env.NODE_ENV !== "test")
+    throw new VaultError(
+      "Authentication is not configured for this environment.",
+      503,
+    );
+  const filename = path.join(dataDirectory(), "auth-secret");
+  try {
+    return await readFile(filename, "utf8");
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+    const secret = randomBytes(48).toString("base64url");
+    try {
+      await writeFile(filename, secret, { flag: "wx", mode: 0o600 });
+      return secret;
+    } catch (writeError) {
+      if ((writeError as NodeJS.ErrnoException).code !== "EEXIST")
+        throw writeError;
+      return readFile(filename, "utf8");
+    }
+  }
+}
+async function createAuth(origin: string) {
+  const client = await database();
+  return betterAuth({
+    appName: "TCS InvoiceFlow",
+    baseURL: origin,
+    secret: await signingSecret(),
+    database: drizzleAdapter(drizzle(client), {
+      provider: "pg",
+      schema,
+      transaction: true,
+    }),
+    emailAndPassword: {
+      enabled: true,
+      minPasswordLength: 12,
+      maxPasswordLength: 128,
+      requireEmailVerification: false,
+    },
+    user: {
+      additionalFields: {
+        firstName: {
+          type: "string",
+          required: true,
+          validator: {
+            input: z.string().trim().min(1).max(80),
+          },
+        },
+        lastName: {
+          type: "string",
+          required: true,
+          validator: {
+            input: z.string().trim().min(1).max(80),
+          },
+        },
+      },
+    },
+    session: {
+      expiresIn: 60 * 60 * 24 * 7,
+      updateAge: 60 * 60 * 24,
+      cookieCache: { enabled: false },
+    },
+    rateLimit: {
+      enabled: true,
+      window: 60,
+      max: 60,
+      customRules: {
+        "/sign-up/email": { window: 60, max: 5 },
+        "/sign-in/email": { window: 60, max: 10 },
+      },
+    },
+    advanced: {
+      cookiePrefix: "tcs-invoiceflow",
+      defaultCookieAttributes: { httpOnly: true, sameSite: "lax" },
+    },
+    // Adapter errors can include SQL parameters; never log credentials or account fields.
+    logger: { disabled: true },
+  });
+}
+const state = globalThis as unknown as {
+  invoiceAuth?: Map<string, ReturnType<typeof createAuth>>;
+};
+export async function getAuth(origin: string) {
+  const url = new URL(origin);
+  const local = ["localhost", "127.0.0.1", "[::1]"].includes(url.hostname);
+  const configured = process.env.BETTER_AUTH_URL;
+  if (!local || !["development", "test"].includes(process.env.NODE_ENV ?? ""))
+    throw new VaultError(
+      "This local installation is not enabled for shared hosting. Configure production database and storage first.",
+      503,
+    );
+  if (configured && new URL(configured).origin !== url.origin)
+    throw new VaultError("This application origin is not configured.", 403);
+  const key = `${dataDirectory()}:${url.origin}`;
+  // Ensure additive migrations also run when Next.js reuses an auth singleton after HMR.
+  await database();
+  state.invoiceAuth ??= new Map();
+  if (!state.invoiceAuth.has(key)) {
+    const opening = createAuth(url.origin);
+    state.invoiceAuth.set(key, opening);
+    opening.catch(() => state.invoiceAuth?.delete(key));
+  }
+  return state.invoiceAuth.get(key)!;
+}
