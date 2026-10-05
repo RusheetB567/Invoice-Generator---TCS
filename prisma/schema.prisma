@@ -1,0 +1,258 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum MembershipRole {
+  OWNER
+  ADMIN
+  MEMBER
+}
+
+enum InvoiceDirection {
+  ISSUED
+  RECEIVED
+}
+
+enum InvoiceStatus {
+  DRAFT
+  SENT
+  PARTIALLY_PAID
+  PAID
+  CANCELLED
+}
+
+enum BillingBody {
+  SECTIONS
+  LEGACY_TABLE
+}
+
+enum DocumentStatus {
+  UPLOADED
+  PROCESSING
+  REVIEW_REQUIRED
+  CONFIRMED
+  FAILED
+}
+
+// Auth IDs remain strings: the auth provider controls their generation.
+model User {
+  id            String       @id
+  name          String
+  email         String       @unique
+  emailVerified Boolean      @default(false)
+  image         String?
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+  sessions      Session[]
+  accounts      Account[]
+  memberships   Membership[]
+}
+
+model Session {
+  id        String   @id
+  token     String   @unique
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  ipAddress String?
+  userAgent String?
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model Account {
+  id                    String    @id
+  accountId             String
+  providerId            String
+  userId                String
+  password              String?
+  accessToken           String?
+  refreshToken          String?
+  idToken               String?
+  accessTokenExpiresAt  DateTime?
+  refreshTokenExpiresAt DateTime?
+  scope                 String?
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+  user                  User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([providerId, accountId])
+  @@index([userId])
+}
+
+model Verification {
+  id         String   @id
+  identifier String
+  value      String
+  expiresAt  DateTime
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([identifier])
+}
+
+model Business {
+  id               String             @id @default(uuid()) @db.Uuid
+  name             String
+  businessNumber   String?
+  address          String?
+  currency         String             @default("AUD") @db.VarChar(3)
+  taxBasisPoints   Int                @default(0)
+  paymentTermsDays Int                @default(7)
+  paymentDetails   String?
+  brandColour      String             @default("#7240c4") @db.VarChar(7)
+  invoicePrefix    String             @default("INV-")
+  nextInvoice      BigInt             @default(1)
+  createdAt        DateTime           @default(now())
+  updatedAt        DateTime           @updatedAt
+  members          Membership[]
+  contacts         Contact[]
+  invoices         Invoice[]
+  documents        UploadedDocument[]
+}
+
+model Membership {
+  businessId String         @db.Uuid
+  userId     String
+  role       MembershipRole @default(MEMBER)
+  createdAt  DateTime       @default(now())
+  business   Business       @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  user       User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  invoices   Invoice[]
+
+  @@id([businessId, userId])
+  @@index([userId])
+}
+
+// A contact can be both a client and a supplier; avoids duplicate identities.
+model Contact {
+  id             String    @id @default(uuid()) @db.Uuid
+  businessId     String    @db.Uuid
+  name           String
+  email          String?
+  address        String?
+  businessNumber String?
+  isClient       Boolean   @default(true)
+  isSupplier     Boolean   @default(false)
+  archivedAt     DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  business       Business  @relation(fields: [businessId], references: [id], onDelete: Restrict)
+  invoices       Invoice[]
+
+  @@unique([id, businessId])
+  @@index([businessId, name])
+}
+
+model Invoice {
+  id                  String           @id @default(uuid()) @db.Uuid
+  businessId          String           @db.Uuid
+  createdById         String
+  contactId           String?          @db.Uuid
+  number              String
+  direction           InvoiceDirection @default(ISSUED)
+  status              InvoiceStatus    @default(DRAFT)
+  body                BillingBody      @default(SECTIONS)
+  currency            String           @db.VarChar(3)
+  issuedOn            DateTime         @db.Date
+  dueOn               DateTime?        @db.Date
+  reference           String?
+  notes               String?
+  paymentTerms        String?
+  taxBasisPoints      Int              @default(0)
+  subtotalCents       BigInt
+  taxCents            BigInt
+  totalCents          BigInt
+  // Freeze party/branding details so profile edits cannot alter issued invoices.
+  issuerSnapshot      Json
+  recipientSnapshot   Json
+  brandingSnapshot    Json
+  schemaVersion       Int              @default(1)
+  revision            Int              @default(1)
+  archivedAt          DateTime?
+  createdAt           DateTime         @default(now())
+  updatedAt           DateTime         @updatedAt
+  business            Business         @relation(fields: [businessId], references: [id], onDelete: Restrict)
+  createdBy           Membership       @relation(fields: [businessId, createdById], references: [businessId, userId], onDelete: Restrict)
+  contact             Contact?         @relation(fields: [contactId, businessId], references: [id, businessId], onDelete: Restrict)
+  blocks              InvoiceBlock[]
+  payments            Payment[]
+  documents           UploadedDocument[]
+
+  @@unique([id, businessId])
+  @@index([businessId, number, direction])
+  @@index([businessId, status, issuedOn])
+  @@index([businessId, contactId])
+}
+
+// Fresh invoices use narrative blocks; quantity/rate only support legacy imports.
+model InvoiceBlock {
+  id                 String  @id @default(uuid()) @db.Uuid
+  businessId         String  @db.Uuid
+  invoiceId          String  @db.Uuid
+  position           Int
+  heading            String
+  details            String  @default("")
+  amountCents        BigInt
+  quantityHundredths BigInt?
+  rateCents          BigInt?
+  invoice            Invoice @relation(fields: [invoiceId, businessId], references: [id, businessId], onDelete: Cascade)
+
+  @@unique([invoiceId, position])
+  @@index([businessId, invoiceId])
+}
+
+model Payment {
+  id          String   @id @default(uuid()) @db.Uuid
+  businessId  String   @db.Uuid
+  invoiceId   String   @db.Uuid
+  amountCents BigInt
+  paidOn      DateTime @db.Date
+  reference   String?
+  createdAt   DateTime @default(now())
+  invoice     Invoice  @relation(fields: [invoiceId, businessId], references: [id, businessId], onDelete: Restrict)
+
+  @@index([businessId, invoiceId])
+}
+
+model UploadedDocument {
+  id              String           @id @default(uuid()) @db.Uuid
+  businessId      String           @db.Uuid
+  invoiceId       String?          @db.Uuid
+  originalName    String
+  storageKey      String           @unique
+  mimeType        String
+  bytes           BigInt
+  sha256          String           @db.VarChar(64)
+  status          DocumentStatus   @default(UPLOADED)
+  errorCode       String?
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+  business        Business         @relation(fields: [businessId], references: [id], onDelete: Restrict)
+  invoice         Invoice?         @relation(fields: [invoiceId, businessId], references: [id, businessId], onDelete: Restrict)
+  extraction      ExtractionResult?
+
+  @@index([businessId, status, createdAt])
+  @@index([businessId, sha256])
+}
+
+// This is a review candidate. Only a confirmation transaction creates an Invoice.
+model ExtractionResult {
+  id            String           @id @default(uuid()) @db.Uuid
+  documentId    String           @unique @db.Uuid
+  provider      String
+  rawText       String?
+  candidate     Json
+  confidence    Json
+  schemaVersion Int              @default(1)
+  reviewedAt    DateTime?
+  createdAt     DateTime         @default(now())
+  document      UploadedDocument @relation(fields: [documentId], references: [id], onDelete: Cascade)
+}

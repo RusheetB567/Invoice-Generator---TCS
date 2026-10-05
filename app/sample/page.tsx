@@ -1,3 +1,7 @@
+import Link from "next/link";
+import AppShell from "../components/app-shell";
+import styles from "../workspace.module.css";
+
 const rows = [
   ['20 Apr - 24 Apr', 'IT Support & User Assistance\nMicrosoft 365 Administration Support\nTechnical Troubleshooting & Remote Technical Assistance', '7.5', '202.50'],
   ['27 Apr - 1 May', 'No IT Related Issues Reported', '0.0', '0.00'],
@@ -9,13 +13,12 @@ const rows = [
 
 export default function Home() {
   return (
-    <main className="min-h-screen bg-[#f3f4f8] px-4 py-8 text-[#24202d] sm:px-8">
-      <header className="mx-auto mb-8 flex max-w-5xl flex-wrap items-center justify-between gap-4 border-b border-[#dedee8] pb-6">
-        <div><h1 className="text-2xl font-bold text-[#522494]">The Code Squad · InvoiceFlow</h1><p className="mt-1 text-sm text-[#646173]">Invoices that feel like your business.</p></div>
-        <span className="rounded-full bg-[#eae1f8] px-4 py-2 text-xs font-bold text-[#522494]">Template preview</span>
-      </header>
-      <section className="mx-auto mb-6 max-w-[850px]"><h2 className="text-2xl font-bold">Your first invoice template</h2><p className="mt-2 text-sm text-[#646173]">The Code Squad sample · AUD</p></section>
-      <article aria-label="Sample Code Squad invoice" className="mx-auto max-w-[850px] overflow-hidden rounded-xl border border-[#e4deed] bg-[#f8f5fc] shadow-xl">
+    <AppShell title="The original TCS sample" subtitle="An optional weekly invoice example. New invoices start with a flexible billing body.">
+      <div className="mx-auto mb-10 flex max-w-[850px] flex-wrap items-center justify-between gap-6">
+        <p className="text-sm text-[#b8a7c7]">Code Squad weekly services · AUD</p>
+        <Link href="/create?template=tcs" className={styles.secondary}>Use this sample <span aria-hidden="true">↗</span></Link>
+      </div>
+      <article data-glow="true" aria-label="Sample Code Squad invoice" className="relative mx-auto max-w-[850px] overflow-hidden rounded-2xl border border-[#e4deed] bg-[#f8f5fc] text-[#24202d] shadow-xl">
         <div aria-hidden="true" className="relative h-32 overflow-hidden bg-gradient-to-r from-[#522494] to-[#8650d3]">
           <div className="absolute -top-5 left-4 size-40 rounded-full bg-white/15" />
           <div className="absolute -top-6 right-8 size-28 rounded-full bg-white/20" />
@@ -53,7 +56,7 @@ export default function Home() {
           <footer className="mt-8 flex justify-between gap-4 text-[10px] text-[#736580]"><span>THE CODE SQUAD · IT Support Services</span><span>Page 1</span></footer>
         </div>
       </article>
-    </main>
+    </AppShell>
   );
 }
 

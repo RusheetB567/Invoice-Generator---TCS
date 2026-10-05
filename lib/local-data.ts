@@ -8,6 +8,9 @@ export type Draft = {
   status: "Draft" | "Sent" | "Paid" | "Cancelled"; updatedAt: string;
   form: Record<string, string>;
   items: Array<{ id: number; description: string; details: string; quantity: string; rate: string }>;
+  // Missing format means the original structured table, preserving older invoices.
+  format?: "sections" | "table";
+  sections?: Array<{ id: number; heading: string; details: string; amount: string }>;
   logo: string;
 };
 export type BrandSettings = {
@@ -29,13 +32,20 @@ const cents = (value: unknown): value is string => typeof value === "string" && 
 
 function isDraft(value: unknown): value is Draft {
   if (!record(value) || !record(value.form) || !Array.isArray(value.items)) return false;
+  const sectionBody = value.format === "sections";
+  if (value.format !== undefined && value.format !== "sections" && value.format !== "table") return false;
+  if (sectionBody && (!Array.isArray(value.sections) || value.sections.length < 1)) return false;
+  if (value.sections !== undefined && (!Array.isArray(value.sections) || value.sections.length > 50
+    || !value.sections.every(section => record(section) && Number.isSafeInteger(section.id) && Number(section.id) > 0
+      && text(section.heading, 300) && text(section.details) && text(section.amount, 32))
+    || new Set(value.sections.map(section => section.id)).size !== value.sections.length)) return false;
   const strings = ["id", "number", "customer", "company", "issued", "due", "updatedAt"];
   return strings.every(key => text(value[key], 300)) && typeof value.id === "string" && value.id.length > 0
     && ["AUD", "USD", "GBP", "EUR"].includes(String(value.currency))
     && ["Draft", "Sent", "Paid", "Cancelled"].includes(String(value.status))
     && [value.subtotalCents, value.taxCents, value.totalCents].every(cents)
     && Object.keys(value.form).length <= 40 && Object.values(value.form).every(field => text(field))
-    && value.items.length > 0 && value.items.length <= 50
+    && (sectionBody || value.items.length > 0) && value.items.length <= 50
     && value.items.every(item => record(item) && Number.isSafeInteger(item.id) && Number(item.id) > 0
       && text(item.description, 300) && text(item.details) && text(item.quantity, 32) && text(item.rate, 32))
     && new Set(value.items.map(item => item.id)).size === value.items.length && logoValue(value.logo);
