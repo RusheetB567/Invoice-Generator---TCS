@@ -5,11 +5,11 @@ import { usePathname } from "next/navigation";
 import {
   useEffect,
   useRef,
-  useState,
   type PointerEvent,
   type ReactNode,
 } from "react";
 import { useWorkspace } from "./workspace-provider";
+import ProfileMenu, { profileLinks } from "./profile-menu";
 import styles from "./shell.module.css";
 
 const navigation = [
@@ -23,27 +23,6 @@ const navigation = [
   { href: "/tax/gst", label: "GST", glyph: "%", group: "Tax" },
   { href: "/tax/years", label: "Financial years", glyph: "◷", group: "Tax" },
   { href: "/reports", label: "Reports", glyph: "◴" },
-  { href: "/documents", label: "Documents", glyph: "▧" },
-  {
-    href: "/settings/business",
-    label: "Business profile",
-    glyph: "◇",
-    group: "Settings",
-  },
-  {
-    href: "/settings/account",
-    label: "Account",
-    glyph: "◎",
-    group: "Settings",
-  },
-  {
-    href: "/settings/security",
-    label: "Security",
-    glyph: "⌘",
-    group: "Settings",
-  },
-  { href: "/settings", label: "Brand studio", glyph: "✦", group: "Settings" },
-  { href: "/reminders", label: "Reminders", glyph: "◷", group: "Settings" },
 ];
 
 export default function AppShell({
@@ -57,26 +36,6 @@ export default function AppShell({
 }) {
   const pathname = usePathname();
   const context = useWorkspace();
-  const [signingOut, setSigningOut] = useState(false),
-    [signoutError, setSignoutError] = useState("");
-  async function signOut() {
-    setSigningOut(true);
-    setSignoutError("");
-    try {
-      const response = await fetch("/api/auth/sign-out", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: "{}",
-      });
-      if (!response.ok)
-        throw new Error(); /* Full navigation discards private route caches after an authentication or workspace change. */
-      // eslint-disable-next-line @next/next/no-location-assign-relative-destination
-      window.location.assign("/sign-in");
-    } catch {
-      setSignoutError("Unable to sign out. Try again.");
-      setSigningOut(false);
-    }
-  }
   const shell = useRef<HTMLDivElement>(null);
   const frame = useRef<number | null>(null);
   const pointerEnabled = useRef(false);
@@ -86,9 +45,9 @@ export default function AppShell({
     surface: HTMLElement | null;
   } | null>(null);
   const sectionLabel =
-    navigation.find((item) => item.href === pathname)?.label ?? title;
+    (pathname === "/reports/documents" ? "Reports / Documents" : navigation.find((item) => item.href === pathname)?.label) ?? profileLinks.find(item => item.href === pathname)?.label ?? title;
   function navLink({ href, label, glyph }: (typeof navigation)[number]) {
-    const active = pathname === href;
+    const active = pathname === href || (href === "/reports" && pathname?.startsWith("/reports/"));
     return (
       <Link
         key={href}
@@ -222,26 +181,7 @@ export default function AppShell({
           <Link href="/" className={styles.backHome}>
             ← Back to platform
           </Link>
-          <div className={styles.company}>
-            <span className={styles.avatar}>
-              {context?.user.firstName.slice(0, 1) || "TCS"}
-            </span>
-            <span>
-              <strong>{context?.workspace.name || "The Code Squad"}</strong>
-              <small>{context?.user.name || "InvoiceFlow studio"}</small>
-            </span>
-          </div>
-          {context && (
-            <button
-              type="button"
-              className={styles.signout}
-              disabled={signingOut}
-              onClick={signOut}
-            >
-              {signingOut ? "Signing out…" : "Sign out"}
-            </button>
-          )}
-          {signoutError && <p role="alert">{signoutError}</p>}
+          <ProfileMenu />
         </div>
       </aside>
       <div className={styles.mainArea}>
@@ -258,6 +198,7 @@ export default function AppShell({
               + New invoice
             </Link>
           )}
+          <ProfileMenu mobile />
         </header>
         <main key={pathname} id="workspace-content" className={styles.content}>
           <div className={styles.pageHeading}>

@@ -2,6 +2,7 @@
 import Link from "next/link";
 import { useState } from "react";
 import AppShell from "./app-shell";
+import ReportTabs from "./report-tabs";
 import { money } from "./money";
 import { useVault } from "../../lib/use-vault";
 import { allocations, financialYear } from "../../lib/domain/tax-record";
@@ -88,6 +89,7 @@ export default function FinancialView({
       title={titles[mode]}
       subtitle="Views calculated from confirmed uploaded records belonging to this business."
     >
+      {mode === "reports" ? <ReportTabs selected="reports" /> : mode !== "income" ? <Link href="/reports/documents" target="_blank" rel="noopener noreferrer" className={styles.documentAccess}>Documents in Reports <span aria-hidden="true">↗</span><span className={styles.srOnly}> (opens in a new tab)</span></Link> : null}
       <div className={styles.titleRow}>
         <label>
           Financial year{" "}

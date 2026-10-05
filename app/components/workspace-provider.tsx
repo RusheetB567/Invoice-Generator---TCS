@@ -68,12 +68,7 @@ export default function WorkspaceProvider({
       ) : (
         <div
           role="status"
-          style={{
-            padding: 60,
-            color: "#d7c4ff",
-            background: "#080610",
-            minHeight: "100vh",
-          }}
+          className="workspaceLoading"
         >
           Opening your private workspace…
         </div>

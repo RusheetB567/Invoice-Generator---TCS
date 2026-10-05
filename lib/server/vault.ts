@@ -99,7 +99,12 @@ export async function getDocument(workspaceId: string, id: string) {
   return result.rows[0].payload;
 }
 export async function originalFile(workspaceId: string, id: string) {
-  await getDocument(workspaceId, id);
+  const document = await getDocument(workspaceId, id);
+  if (document.source?.kind === "spreadsheet") {
+    const source = await (await database()).query<{ id: string }>("SELECT id FROM vault_spreadsheet_import WHERE id=$1 AND workspace_id=$2", [document.source.batchId, workspaceId]);
+    if (!source.rows[0]) throw new VaultError("Original workbook not found.", 404);
+    return readFile(path.join(dataDirectory(), "documents", source.rows[0].id));
+  }
   return readFile(path.join(dataDirectory(), "documents", id));
 }
 export async function storeDocument(

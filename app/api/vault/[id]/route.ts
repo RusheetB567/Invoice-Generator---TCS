@@ -19,7 +19,7 @@ export async function GET(request: Request, context: Context) {
         return new Response(new Uint8Array(preview.pages[0].data), { headers: { "Content-Type": "image/png", "Cache-Control": "no-store", "X-Content-Type-Options": "nosniff" } });
       } finally { await parser.destroy(); }
     }
-    if (new URL(request.url).searchParams.has("file")) return new Response(new Uint8Array(await originalFile(workspace.id, id)), { headers: { "Content-Type": document.mime, "Cache-Control": "no-store", "X-Content-Type-Options": "nosniff", "Content-Security-Policy": "sandbox", "Content-Disposition": `inline; filename*=UTF-8''${encodeURIComponent(document.name)}` } });
+    if (new URL(request.url).searchParams.has("file")) return new Response(new Uint8Array(await originalFile(workspace.id, id)), { headers: { "Content-Type": document.mime, "Cache-Control": "no-store", "X-Content-Type-Options": "nosniff", "Content-Security-Policy": "sandbox", "Content-Disposition": `${document.source ? "attachment" : "inline"}; filename*=UTF-8''${encodeURIComponent(document.name)}` } });
     return Response.json({ document }, { headers: { "Cache-Control": "no-store" } });
   } catch (error) { return safeError(error); }
 }

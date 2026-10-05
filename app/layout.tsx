@@ -1,6 +1,9 @@
 import type { Metadata } from "next";
 import localFont from "next/font/local";
 import type { ReactNode } from "react";
+import { cookies } from "next/headers";
+import ThemeProvider from "./components/theme-provider";
+import { readTheme, THEME_COOKIE } from "../lib/theme";
 import "./globals.css";
 
 const interfaceFont = localFont({
@@ -23,10 +26,11 @@ export const metadata: Metadata = {
     "InvoiceFlow by The Code Squad. Create personalised invoices with your company details, logo, colours, and line items.",
 };
 
-export default function RootLayout({ children }: { children: ReactNode }) {
+export default async function RootLayout({ children }: { children: ReactNode }) {
+  const theme = readTheme((await cookies()).get(THEME_COOKIE)?.value);
   return (
-    <html lang="en" className={`${interfaceFont.variable} ${monoFont.variable}`}>
-      <body>{children}</body>
+    <html lang="en" data-theme={theme} className={`${interfaceFont.variable} ${monoFont.variable}`}>
+      <body><ThemeProvider initialTheme={theme}>{children}</ThemeProvider></body>
     </html>
   );
 }

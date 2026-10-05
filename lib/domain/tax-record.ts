@@ -34,8 +34,9 @@ export type TaxRecordInput = z.infer<typeof taxRecordSchema>;
 export type Candidate = { supplier: string; number: string; issued: string; total: string; gst: string };
 export type VaultDocument = {
   id: string; name: string; mime: string; hash: string; status: "Review" | "Confirmed";
-  method: "PDF text" | "Local OCR" | "Manual review"; text: string; candidate: Candidate;
+  method: "PDF text" | "Local OCR" | "Manual review" | "Excel import"; text: string; candidate: Candidate;
   notice: string; createdAt: string; record: TaxRecordInput | null; pages?: number;
+  source?: { kind: "spreadsheet"; batchId: string; sheet: string; row: number; fileHash: string };
 };
 export function allocations(record: TaxRecordInput) {
   const total = hundredths(record.total, BigInt(9999999))!;

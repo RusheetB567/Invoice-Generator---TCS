@@ -22,6 +22,10 @@ import {
 } from "../lib/server/workspaces.ts";
 import { businessProfileSchema } from "../lib/domain/business.ts";
 import { POST as calculateTaxEndpoint } from "../app/api/tax/calculate/route.ts";
+import ExcelJS from "exceljs";
+import { POST as uploadWorkbook } from "../app/api/vault/imports/route.ts";
+import { GET as readWorkbook, POST as approveWorkbook } from "../app/api/vault/imports/[id]/route.ts";
+import { GET as exportRecords } from "../app/api/vault/export/route.ts";
 import {
   listContacts,
   saveContact,
@@ -207,6 +211,25 @@ test("real signup, private onboarding, tenant isolation and revoked sessions", a
       () => getDocument(workspaceA, legacyId),
       (error) => error.status === 404,
     );
+    process.env.NODE_ENV = "development";
+    const workbook = new ExcelJS.Workbook(), worksheet = workbook.addWorksheet("Records");
+    worksheet.addRow(["Supplier", "Invoice number", "Invoice date", "Total", "GST"]);
+    worksheet.addRow(["API fixture", "API-001", "2026-07-01", 110, 10]);
+    const workbookBytes = await workbook.xlsx.writeBuffer();
+    const workbookHeaders = { cookie: cookies, origin: "http://localhost:3199", "x-invoiceflow-vault": "local", "content-type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" };
+    const upload = () => new Request("http://localhost:3199/api/vault/imports?name=fixture.xlsx", { method: "POST", headers: workbookHeaders, body: workbookBytes });
+    const uploaded = await uploadWorkbook(upload()); assert.equal(uploaded.status, 201);
+    const batch = (await uploaded.json()).batch, context = { params: Promise.resolve({ id: batch.id }) };
+    const otherCookieForImport = second.headers.getSetCookie().map(value => value.split(";")[0]).join("; ");
+    assert.equal((await readWorkbook(new Request(`http://localhost:3199/api/vault/imports/${batch.id}`, { headers: { cookie: otherCookieForImport } }), context)).status, 404);
+    assert.equal((await uploadWorkbook(new Request("http://localhost:3199/api/vault/imports?name=fixture.xlsx", { method: "POST", headers: { "x-invoiceflow-vault": "local" }, body: workbookBytes }))).status, 401);
+    assert.equal((await uploadWorkbook(new Request("http://localhost:3199/api/vault/imports?name=fixture.xlsx", { method: "POST", headers: { ...workbookHeaders, origin: "https://foreign.example" }, body: workbookBytes }))).status, 403);
+    const approved = await approveWorkbook(new Request(`http://localhost:3199/api/vault/imports/${batch.id}`, { method: "POST", headers: { ...workbookHeaders, "content-type": "application/json" }, body: JSON.stringify({ sheet: "Records", reviewed: true, rows: [{ number: 2, record: { supplier: "API fixture", number: "API-001", issued: "2026-07-01", total: "110", gst: "10", kind: "Expense", category: "Other", treatment: "Needs tax review", businessPercent: "0", gstRegistered: false, claimGst: false, currency: "AUD", notes: "", confirmed: true } }] }) }), context);
+    assert.equal(approved.status, 200); const importedId = (await approved.json()).ids[0];
+    const download = await exportRecords(new Request(`http://localhost:3199/api/vault/export?ids=${importedId}`, { headers: { cookie: cookies } })); assert.equal(download.status, 200); assert.equal(download.headers.get("cache-control"), "no-store");
+    const exportedWorkbook = new ExcelJS.Workbook(); await exportedWorkbook.xlsx.load(await download.arrayBuffer()); assert.equal(exportedWorkbook.getWorksheet("Records").getCell("C2").value, "API-001");
+    assert.deepEqual(await originalFile(workspaceA, importedId), Buffer.from(workbookBytes));
+    process.env.NODE_ENV = "test";
     await db.query(
       "UPDATE workspace_membership SET role='VIEWER' WHERE user_id=$1",
       [other.user.id],

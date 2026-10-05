@@ -34,6 +34,9 @@ test('Excel export preserves numbers, dates, source IDs, FY and selected GST all
   assert.equal(sheet.getCell('B2').value,'=Example supplier'); assert.equal(sheet.getCell('C2').value,'001'); assert.equal(sheet.getCell('E2').value,'2026–2027');
   assert.equal(sheet.getCell('J2').value,110); assert.equal(sheet.getCell('O2').value,82.5); assert.equal(sheet.getCell('P2').value,7.5); assert.equal(sheet.getCell('Q2').value,75);
   assert.equal(sheet.getCell('B2').type,ExcelJS.ValueType.String);
+  assert.equal(sheet.getCell('D2').type,ExcelJS.ValueType.Date); assert.equal(sheet.getCell('D2').value.toISOString().slice(0,10),'2026-07-01');
+  assert.equal(sheet.getCell('L2').value,.75); assert.equal(sheet.getCell('L2').numFmt,'0.0%');
+  const tax=workbook.getWorksheet('Tax summary'); assert.equal(tax.getCell('E2').value,110); assert.equal(tax.getCell('H2').value,7.5);
   assert.equal(workbook.getWorksheet('Overview').getCell('B7').value,7.5);
 });
 test('embedded PostgreSQL records survive closing and reopening their data directory', async () => {
