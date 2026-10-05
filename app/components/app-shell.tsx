@@ -18,12 +18,10 @@ const navigation = [
   { href: "/create", label: "Create invoice", glyph: "+", group: "Invoices" },
   { href: "/upload", label: "Upload invoice", glyph: "↥", group: "Invoices" },
   { href: "/income", label: "Income", glyph: "↗" },
-  { href: "/clients", label: "Clients", glyph: "◎" },
-  { href: "/suppliers", label: "Suppliers", glyph: "◇" },
+  { href: "/tax-calculator", label: "Tax calculator", glyph: "%" },
   { href: "/records", label: "Overview", glyph: "◫", group: "Tax" },
   { href: "/tax/gst", label: "GST", glyph: "%", group: "Tax" },
   { href: "/tax/years", label: "Financial years", glyph: "◷", group: "Tax" },
-  { href: "/tax/enquiries", label: "Enquiries", glyph: "?", group: "Tax" },
   { href: "/reports", label: "Reports", glyph: "◴" },
   { href: "/documents", label: "Documents", glyph: "▧" },
   {
@@ -102,9 +100,6 @@ export default function AppShell({
           {glyph}
         </span>
         {label}
-        <span className={styles.navArrow} aria-hidden="true">
-          ↗
-        </span>
       </Link>
     );
   }
@@ -224,16 +219,6 @@ export default function AppShell({
           )}
         </nav>
         <div className={styles.sidebarBottom}>
-          <div className={styles.studioCard} data-glow="true">
-            <span>YOUR BRAND. YOUR RULES.</span>
-            <p>
-              A little more you.
-              <br />A lot less admin.
-            </p>
-            <Link href="/settings">
-              Make it yours <span aria-hidden="true">↗</span>
-            </Link>
-          </div>
           <Link href="/" className={styles.backHome}>
             ← Back to platform
           </Link>
@@ -280,9 +265,6 @@ export default function AppShell({
               <span className={styles.eyebrow}>TCS / INVOICEFLOW</span>
               <h1>{title}</h1>
               {subtitle && <p>{subtitle}</p>}
-            </div>
-            <div className={styles.headingDecoration} aria-hidden="true">
-              ✦
             </div>
           </div>
           {children}

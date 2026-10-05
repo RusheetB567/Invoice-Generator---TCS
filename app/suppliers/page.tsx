@@ -1,2 +1,2 @@
-import Directory from "../components/contact-directory";
-export default function Page() { return <Directory kind="Supplier" />; }
+import { redirect } from "next/navigation";
+export default function Page() { redirect("/workspace"); }

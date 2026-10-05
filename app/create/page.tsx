@@ -6,7 +6,6 @@ import { useSearchParams } from "next/navigation";
 import { Suspense, useRef, useState, useSyncExternalStore, type CSSProperties } from "react";
 import AppShell from "../components/app-shell";
 import { useWorkspace } from "../components/workspace-provider";
-import ClientPicker from "../components/client-picker";
 import { readBrand, saveDraft, useBrand, useDrafts, type BrandSettings, type Draft } from "../../lib/local-data";
 import { brandForeground } from "../../lib/brand-colour";
 import { hundredths, lineTotal, taxTotal } from "../../lib/domain/invoice-math";
@@ -244,7 +243,6 @@ function InvoiceEditor({ startingDraft, missingDraft, sample, savedBrand }: { st
             </details>
           </fieldset></details>
           <details id="customer" className={styles.editGroup} open={openGroups.includes("customer")}>{groupHeading("customer", "02", "Invoice details", form.customer || "Customer, number, dates, and currency")}<fieldset><legend className={styles.srOnly}>Customer and invoice details</legend>
-            <ClientPicker onChoose={contact=>setForm(current=>({...current,customer:contact.name,customerAddress:contact.address}))} />
             {field("customer", "Bill to")}
             <div className={styles.pair}>{field("number", "Invoice number")}<label className={styles.field}><span>Currency</span><select value={currency} onChange={event => setCurrency(event.target.value as Currency)}>{Object.keys(currencies).map(code => <option key={code} value={code}>{code}</option>)}</select></label></div>
             <p className={styles.hint}>Changing currency relabels your prices; it does not convert them.</p>

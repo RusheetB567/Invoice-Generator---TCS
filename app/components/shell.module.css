@@ -96,21 +96,15 @@
   gap: 12px;
   border: 1px solid transparent;
   border-radius: 11px;
-  padding: 14px 13px;
-  font-size: 14px;
+  padding: 12px 13px;
+  font-size: 13px;
   color: #bcaacc !important;
   transition: background .2s, color .2s, transform .2s, border-color .2s;
 }
 .navLink.active { background: linear-gradient(90deg, #9a68ef29, #7c43ce13); border-color: #a173ed2b; color: #e7d6ff !important; box-shadow: inset 3px 0 #a87cf4; }
 .navGlyph { font-size: 22px; line-height: 20px; width: 21px; text-align: center; color: #b397d6; }
 .active .navGlyph { color: #d5b6ff; }
-.navArrow { margin-left: auto; opacity: 0; transition: opacity .2s; }
-.navLink:focus-visible .navArrow, .active .navArrow { opacity: 1; }
 .sidebarBottom { margin-top: auto; padding-top: 30px; }
-.studioCard { padding: 21px 17px; border: 1px solid #9264d933; border-radius: 14px; position: relative; overflow: hidden; background: radial-gradient(ellipse at 100% 0%, #8556ed26, transparent 80%), #181023; }
-.studioCard > span { font-size: 10px; letter-spacing: 1px; color: #c5a6ee; }
-.studioCard p { font-family: var(--font-heading, var(--font-interface, Arial)); font-size: 20px; line-height: 1.4; margin: 13px 0 19px; letter-spacing: -.5px; font-weight: 600; }
-.studioCard a { font-size: 13px; color: #ddc6ff; display: flex; justify-content: space-between; min-height: 34px; align-items: center; }
 .backHome { font-size: 12px; color: #aa96bc !important; display: block; padding: 21px 12px; }
 .company { border-top: 1px solid var(--tcs-line); padding: 20px 6px 0; display: flex; align-items: center; gap: 10px; }
 .avatar { height: 35px; width: 35px; flex: none; display: grid; place-items: center; border-radius: 50%; background: #a77bee1a; border: 1px solid #a77bee40; font-size: 11px; color: #ddc6f6; }

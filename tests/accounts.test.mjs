@@ -21,6 +21,7 @@ import {
   sameOriginWrite,
 } from "../lib/server/workspaces.ts";
 import { businessProfileSchema } from "../lib/domain/business.ts";
+import { POST as calculateTaxEndpoint } from "../app/api/tax/calculate/route.ts";
 import {
   listContacts,
   saveContact,
@@ -114,6 +115,17 @@ test("real signup, private onboarding, tenant isolation and revoked sessions", a
     });
     await finishOnboarding(value.user.id, profile);
     assert.equal((await requireWorkspace(request)).workspace.id, workspaceA);
+    const taxBody = { income: "80000", frequency: "annual", financialYear: "2026-27", employment: "employee", residency: "resident", hoursPerWeek: 38, weeksPerYear: 52, daysPerWeek: 5 };
+    const taxRequest = (body, cookie = cookies, origin = "http://localhost:3199") => new Request("http://localhost:3199/api/tax/calculate", { method: "POST", headers: { "content-type": "application/json", origin, cookie }, body: JSON.stringify(body) });
+    assert.equal((await calculateTaxEndpoint(taxRequest(taxBody, ""))).status, 401);
+    assert.equal((await calculateTaxEndpoint(taxRequest(taxBody, cookies, "https://example.test"))).status, 403);
+    assert.equal((await calculateTaxEndpoint(taxRequest({ ...taxBody, income: "-1" }))).status, 422);
+    assert.equal((await calculateTaxEndpoint(taxRequest({ ...taxBody, income: "9".repeat(5000) }))).status, 413);
+    assert.equal((await calculateTaxEndpoint(taxRequest({ ...taxBody, netCents: 8000000 }))).status, 422);
+    const taxResponse = await calculateTaxEndpoint(taxRequest(taxBody));
+    assert.equal(taxResponse.status, 200);
+    assert.equal(taxResponse.headers.get("cache-control"), "no-store");
+    assert.equal((await taxResponse.json()).result.netCents, 6388000);
     const second = await send("sign-up/email", {
       ...fixture,
       email: "other@example.test",
