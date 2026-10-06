@@ -1,11 +1,15 @@
 import { requireWorkspace } from "../../../../lib/server/workspaces";
 import { confirmDocument, getDocument, localOnly, originalFile, safeError, VaultError } from "../../../../lib/server/vault";
 import { taxRecordSchema } from "../../../../lib/domain/tax-record";
+import { boundedJson } from "../../../../lib/server/request-body";
+import { audit } from "../../../../lib/server/audit";
+import { database } from "../../../../lib/server/database";
 export const runtime = "nodejs";
 type Context = { params: Promise<{ id: string }> };
 export async function GET(request: Request, context: Context) {
   try {
-    localOnly(request); const { workspace } = await requireWorkspace(request, request.method !== "GET"); const { id } = await context.params; const document = await getDocument(workspace.id, id);
+    localOnly(request); const { workspace, identity } = await requireWorkspace(request); const { id } = await context.params; const document = await getDocument(workspace.id, id);
+    if (new URL(request.url).searchParams.has("preview") || new URL(request.url).searchParams.has("file")) await audit(await database(), workspace.id, identity.user.id, "document.access", id);
     if (new URL(request.url).searchParams.has("preview") && document.mime === "application/pdf") {
       const { PDFParse } = await import("pdf-parse");
       const parser = new PDFParse({ data: await originalFile(workspace.id, id), isEvalSupported: false });
@@ -25,12 +29,10 @@ export async function GET(request: Request, context: Context) {
 }
 export async function POST(request: Request, context: Context) {
   try {
-    localOnly(request); const { workspace } = await requireWorkspace(request, request.method !== "GET"); const { id } = await context.params; await getDocument(workspace.id, id);
-    const length = Number(request.headers.get("content-length"));
-    if (!length || length > 20000) throw new VaultError("Record details must be a bounded request up to 20 KB.", 413);
-    const input = taxRecordSchema.safeParse(await request.json());
+    localOnly(request); const { workspace, identity } = await requireWorkspace(request, true); const { id } = await context.params; await getDocument(workspace.id, id);
+    const input = taxRecordSchema.safeParse(await boundedJson(request, 20000));
     if (!input.success) return Response.json({ error: input.error.issues.map(issue => `${issue.path.join(".")}: ${issue.message}`).join(" ") }, { status: 422 });
-    return Response.json({ document: await confirmDocument(workspace.id, id, input.data) });
+    return Response.json({ document: await confirmDocument(workspace.id, id, input.data, identity.user.id) });
   } catch (error) { return safeError(error); }
 }
 

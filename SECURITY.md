@@ -1,16 +1,15 @@
-# Security delivery requirements
+# Security implementation and limits
+See [SECURITY-REVIEW.md](SECURITY-REVIEW.md) for the pre-hardening review and [BACKEND-DELIVERY.md](BACKEND-DELIVERY.md) for verified delivery.
 
-The local build now uses Better Auth database sessions and server membership checks for document, profile, directory and enquiry APIs. Browser drafts are scoped by account/business, but remain local. See ACCOUNTS-WORKSPACES.md for completed controls, verification and the fail-closed production boundary. The remaining controls below are acceptance criteria for a shared cloud service.
+Authentication uses Better Auth with password-confirmed TOTP enrollment, confirmation before activation, encrypted secrets/recovery codes, one-time recovery, persistent attempt controls and challenge lockout. Successful TOTP is tied to the exact server session; keyed code digests reject replay for two minutes. Privileged production roles require MFA. Sensitive exports, payment changes, password changes, MFA removal and code replacement require TOTP no older than ten minutes. Recovery sign-in cannot approve those actions. Production administrators cannot disable their only configured MFA.
 
-- Authenticate on the server and resolve authorised business membership for every operation. Never trust a client-provided user/business ID by itself.
-- Use the auth library for password hashing, secure cookies, session rotation and verification/reset token handling. Require verification before production access.
-- Validate request schemas, lengths, dates, currencies and monetary inputs. Recompute totals on the server; reject inconsistent data.
-- Use optimistic revisions for edits and transactions/locking for invoice numbering, payments and extraction confirmation.
-- Keep document objects private. Authorise downloads and use short-lived URLs. Validate signatures, supported formats, size/page limits and decompression limits; reject unsafe uploads.
-- Render custom text safely. Future template JSON must have an allowlisted schema; never execute customer JavaScript or inject arbitrary HTML.
-- Configure rate limits and auth CSRF/origin protections before public exposure. Use generic safe error messages and redacted technical logs.
-- Never log secrets, session tokens, complete bank details or raw uploaded invoice contents.
-- Back up database/object storage; test restoration and retention workflows. Audit material changes once server writes exist.
+Permissions explicitly deny unknown roles. OWNER/ADMIN can manage business preferences, archive and export; MEMBER creates/reviews records; VIEWER reads workspace invoice/record data. Existing invoice/document read permission includes full financial document content within that workspace. Fine-grained confidential-document classifications, Accountant/Finance roles, membership administration and per-document sharing are not implemented; do not claim those controls or onboard teams needing them.
 
-Automated access-control, upload, authentication and integration tests are required before deployment with real user data.
+Server role and tenant checks protect every route. MFA-locked server layouts redact business profiles; the personal security area permits enrollment without unlocking financial records. Sessions and MFA operations are audited without raw credentials. SQL parameters, byte limits, validated logos/files, formula-safe spreadsheets and computed totals prevent common injection/tampering paths. Append-only history is enforced by database triggers, with a separate restricted runtime role required in production.
+
+Headers include nosniff, frame denial, referrer/permissions restrictions, baseline object/base/frame/form CSP and production HSTS. Powered-by and production browser source maps are disabled. Full nonce-based script CSP is not implemented. CSRF/origin checks and no-cache responses are tested; actual proxy/client-IP trust still needs provider-specific verification.
+
+Originals are quarantined before parse, scanned through private IPC, private/versioned, bounded and integrity-checked on access. Local validation without ClamAV is not malware scanning. Runtime roles must not delete evidence. Backups are encrypted locally; live provider backups/restore have not been tested.
+
+Known residuals: five high dev-tool advisories in the braces/micromatch lint dependency chain; no patched upstream braces version was available at verification. No formal pentest, deployment network verification, external alerting, passkeys, granular sensitive-document policy, production restore drill or formal Australian compliance assessment. These are launch constraints, not certifications.
 

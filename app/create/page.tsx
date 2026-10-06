@@ -66,12 +66,13 @@ function InvoiceEditor({ startingDraft, missingDraft, sample, savedBrand }: { st
   const [logo, setLogo] = useState(startingDraft?.logo ?? (!sample ? savedBrand?.logo ?? "" : ""));
   const [logoError, setLogoError] = useState("");
   const [logoLoading, setLogoLoading] = useState(false);
+  const [saving, setSaving] = useState(false);
   const [zoom, setZoom] = useState(100);
-  const [notification, setNotification] = useState(missingDraft ? "This saved invoice could not be found in this browser. A new blank invoice is open; choose an available local draft below." : startingDraft ? `Editing saved invoice ${startingDraft.number}. Save your changes when you are ready.` : "");
+  const [notification, setNotification] = useState(missingDraft ? "This saved invoice could not be found in this workspace. A new blank invoice is open; choose an available saved invoice below." : startingDraft ? `Editing saved invoice ${startingDraft.number}. Save your changes when you are ready.` : "");
   const [showValidation, setShowValidation] = useState(false);
   const [openGroups, setOpenGroups] = useState(["business", "customer", "services"]);
   const [draftChoice, setDraftChoice] = useState(startingDraft?.id ?? "");
-  const [activeDraft, setActiveDraft] = useState<{ id: string; status: Draft["status"] } | null>(startingDraft ? { id: startingDraft.id, status: startingDraft.status } : null);
+  const [activeDraft, setActiveDraft] = useState<{ id: string; status: Draft["status"]; revision?: number } | null>(startingDraft ? { id: startingDraft.id, status: startingDraft.status, revision: startingDraft.revision } : null);
   const [attachments, setAttachments] = useState<Array<{ id: string; name: string; size: number }>>([]);
   const [attachmentError, setAttachmentError] = useState("");
   const drafts = useDrafts();
@@ -102,7 +103,6 @@ function InvoiceEditor({ startingDraft, missingDraft, sample, savedBrand }: { st
   const errors = [
     ...(!form.company.trim() ? ["Enter your company name."] : []),
     ...(!form.customer.trim() ? ["Enter a customer name."] : []),
-    ...(!form.number.trim() ? ["Enter an invoice number."] : []),
     ...(format === "table" && !form.lineLabel.trim() ? ["Enter a quantity column label."] : []),
     ...(!form.taxLabel.trim() ? ["Enter a tax label."] : []),
     ...(!validDate(form.issued) || !validDate(form.due) ? ["Enter valid issue and due dates."] : form.due < form.issued ? ["The due date must be on or after the issue date."] : []),
@@ -119,17 +119,35 @@ function InvoiceEditor({ startingDraft, missingDraft, sample, savedBrand }: { st
   ];
   const canPrint = errors.length === 0 && !logoLoading;
 
-  function saveCurrentDraft() {
+  async function saveCurrentDraft() {
     if (!canPrint) { setShowValidation(true); setOpenGroups(["business", "customer", "services", "payment"]); setNotification("Complete the required details before saving. Check the highlighted guidance below."); return; }
     const id = activeDraft?.id ?? window.crypto.randomUUID();
+    setSaving(true);
     try {
-      saveDraft({ id, number: form.number, customer: form.customer, company: form.company, currency,
+      const saved = await saveDraft({ id, revision: activeDraft?.revision ?? 0, number: form.number, customer: form.customer, company: form.company, currency,
         subtotalCents: subtotal.toString(), taxCents: taxAmount.toString(), totalCents: (subtotal + taxAmount).toString(),
         issued: form.issued, due: form.due, status: activeDraft?.status ?? "Draft", updatedAt: new Date().toISOString(), form, items: format === "table" ? items : [], format, sections: format === "sections" ? sections : undefined, logo });
-      setActiveDraft({ id, status: activeDraft?.status ?? "Draft" });
+      setActiveDraft({ id, status: activeDraft?.status ?? "Draft", revision: saved?.revision });
+      if (saved) setForm(current => ({ ...current, number: saved.number }));
       setDraftChoice(id);
-      setNotification(`Invoice ${form.number} saved in this browser. Attachment names are not saved.`);
-    } catch (error) { setNotification(error instanceof Error ? error.message : "Unable to save this draft locally."); }
+      setNotification(`Invoice ${saved?.number || form.number} saved to your private workspace. Attachment names are not saved.`);
+      return saved;
+    } catch (error) { setNotification(error instanceof Error ? error.message : "Unable to save this invoice."); }
+    finally { setSaving(false); }
+  }
+  async function downloadPdf() {
+    const saved = await saveCurrentDraft();
+    if (!saved) return;
+    setSaving(true);
+    try {
+      const response = await fetch(`/api/invoices/${saved.id}/pdf`, { cache: "no-store" });
+      if (!response.ok) { const error = await response.json(); throw new Error(error.error || "PDF generation failed."); }
+      const url = URL.createObjectURL(await response.blob()), anchor = document.createElement("a");
+      anchor.href = url; anchor.download = `Invoice-${saved.number}-v${saved.revision}.pdf`; anchor.click();
+      window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+      setNotification(`PDF downloaded for invoice ${saved.number}, revision ${saved.revision}.`);
+    } catch (error) { setNotification(error instanceof Error ? error.message : "Unable to generate this PDF."); }
+    finally { setSaving(false); }
   }
   function loadSelectedDraft() {
     const draft = drafts.find(item => item.id === draftChoice);
@@ -138,7 +156,7 @@ function InvoiceEditor({ startingDraft, missingDraft, sample, savedBrand }: { st
     setForm(formFromDraft(draft)); setItems(draft.items.map(item => ({ ...item }))); setCurrency(draft.currency as Currency);
     setFormat(draft.format ?? "table"); setSections((draft.sections ?? [emptySection]).map(section => ({ ...section }))); setShowValidation(false);
     setLogo(draft.logo); setLogoError(""); setLogoLoading(false); setAttachments([]); setAttachmentError("");
-    setActiveDraft({ id: draft.id, status: draft.status });
+    setActiveDraft({ id: draft.id, status: draft.status, revision: draft.revision });
     nextId.current = Math.max(1, ...draft.items.map(item => item.id), ...(draft.sections ?? []).map(section => section.id)) + 1;
     setNotification(`Loaded invoice ${draft.number}. Your previous unsaved edits were replaced.`);
   }
@@ -220,8 +238,8 @@ function InvoiceEditor({ startingDraft, missingDraft, sample, savedBrand }: { st
     <AppShell title={activeDraft ? "Edit invoice" : format === "sections" ? "Write your invoice" : "Structured invoice"} subtitle={format === "sections" ? "Your words, your branding, clear amounts." : "The original Code Squad template, with editable service rows."}>
     <div className={styles.root}>
       <header className={styles.toolbar}>
-        <p className={styles.saveInfo}>{activeDraft ? `Editing ${form.number}` : "New invoice"}<span>Drafts save to this browser. Unsaved edits clear on refresh. PDF uses your print dialog.</span></p>
-        <div className={styles.actions}><button className={styles.secondary} type="button" disabled={logoLoading} onClick={saveCurrentDraft}>Save draft locally</button><button className={styles.primary} type="button" disabled={!canPrint} title={!canPrint ? "Complete required invoice details to enable printing" : undefined} onClick={() => window.print()}>Print / save as PDF</button></div>
+        <p className={styles.saveInfo}>{activeDraft ? `Editing ${form.number}` : "New invoice"}<span>Invoices save to your private workspace. Unsaved edits clear on refresh.</span></p>
+        <div className={styles.actions}><button className={styles.secondary} type="button" disabled={logoLoading || saving} onClick={saveCurrentDraft}>{saving ? "Saving…" : "Save invoice"}</button><button className={styles.primary} type="button" disabled={!canPrint || saving} title={!canPrint ? "Complete required invoice details to enable download" : undefined} onClick={downloadPdf}>Download PDF</button></div>
       </header>
       <div className={styles.utilityBar}>
         <nav className={styles.steps} aria-label="Invoice editor sections">{[["business", "01 Brand"], ["customer", "02 Details"], ["services", "03 Write"], ["payment", "04 Payment"]].map(([id, label]) => <button type="button" key={id} aria-pressed={openGroups.includes(id)} onClick={() => { setOpenGroups(current => current.includes(id) ? current : [...current, id]); document.getElementById(id)?.scrollIntoView({ behavior: "auto", block: "start" }); }}>{label}</button>)}</nav>
@@ -284,7 +302,7 @@ function InvoiceEditor({ startingDraft, missingDraft, sample, savedBrand }: { st
           </fieldset></details>
           {showValidation && errors.length > 0 && <div className={styles.errors} role="status"><strong>Complete these details</strong><ul>{errors.map(error => <li key={error}>{error}</li>)}</ul></div>}
           <p className={styles.hint}>* Required before saving or printing.</p>
-          <p className={styles.hint}>Choose “Save as PDF” in the print dialog. Use A4 or Letter and turn off browser headers and footers.</p>
+          <p className={styles.hint}>Download PDF saves the invoice first and retains a PDF for that revision.</p>
         </form>
         <section className={styles.previewArea} aria-label="Live invoice preview">
           <div className={styles.previewLabel}><span><i />Live preview</span><span>{currency} · {format === "sections" ? "Flexible document" : "Structured template"}</span></div>
@@ -329,4 +347,3 @@ function DraftResolver() {
 export default function CreateInvoice() {
   return <Suspense fallback={<AppShell title="Invoice studio"><p role="status">Opening your invoice studio…</p></AppShell>}><DraftResolver /></Suspense>;
 }
-

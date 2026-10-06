@@ -1,10 +1,11 @@
-# Deployment readiness
+# Deployment gate
+Hosting and accounts are intentionally deferred. No service was deployed.
 
-The application currently runs locally. The repository was previously pushed to GitHub. This account/workspace milestone is left uncommitted and unsynced for the user to review. No hosting deployment, paid account or email delivery has been performed.
+Production startup requires an explicit HTTPS origin, strong auth secret, configured PostgreSQL, private versioned S3, private ClamAV socket, verified email delivery configuration, legal operator/privacy contact and an operator approval flag. The flag is an operational acknowledgement, not evidence of security.
 
-Before a public release: configure PostgreSQL and connection pooling, apply reviewed migrations, enable secure authentication and tenant isolation, configure private object storage, configure verified email delivery, run integration/access-control tests, test database/object recovery, and replace browser-only demo features with their verified server implementations.
+Before public access, use [OPERATIONS.md](OPERATIONS.md). Run reviewed migrations with a separate role and `npm run check:production` with NODE_ENV=production and private configuration. That script tests connectivity/migrations, critical history/schema privileges and bucket public-access/encryption/versioning configuration. It does not certify database residency, network isolation, scanner health, mail delivery or restore success.
 
-Vercel remains the intended Next.js host. Its filesystem cannot serve as persistent upload storage. Configure secrets through the deployment environment, never through committed files. Use a separate development database and storage bucket from production. Run production migrations as a controlled release step, not during arbitrary requests.
+A scanner with Unix-domain socket or Windows named-pipe access is required by the current adapter. Select a compatible application runtime or implement and test a private authenticated scanner adapter before choosing a hosting model. Do not expose ClamAV TCP or public database ports.
 
-Do not label the existing print dialog as direct server-generated PDF download or reminder preferences as active email automation.
+No Git staging, commits, pushes, remote writes or deployments are part of this delivery.
 

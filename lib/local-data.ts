@@ -3,6 +3,7 @@
 import { useMemo, useSyncExternalStore } from "react";
 
 export type Draft = {
+  revision?: number;
   id: string; number: string; customer: string; company: string; currency: string;
   subtotalCents: string; taxCents: string; totalCents: string; issued: string; due: string;
   status: "Draft" | "Sent" | "Paid" | "Cancelled"; updatedAt: string;
@@ -25,7 +26,38 @@ export const BRAND_KEY = "tcs-invoiceflow-brand";
 export const REMINDERS_KEY = "tcs-invoiceflow-reminders";
 export const CHANGE_EVENT = "tcs-invoiceflow-change";
 let workspaceScope: string | null = null;
-export function setWorkspaceScope(scope: string | null) { workspaceScope = scope; }
+let serverMode = false;
+let workspaceGeneration = 0;
+let preferencesRevision = 0;
+const memory = new Map<string, string>();
+export type InvoiceSummary = Array<{ currency: string; status: Draft["status"]; count: number; totalCents: string }>;
+const SUMMARY_KEY = "tcs-invoice-summary";
+export function setWorkspaceScope(scope: string | null, emptyServerState = false) { workspaceScope = scope; workspaceGeneration++; serverMode = emptyServerState; memory.clear(); preferencesRevision = 0; }
+function announce() { window.dispatchEvent(new CustomEvent(CHANGE_EVENT)); }
+async function serverRequest(path: string, method = "GET", value?: unknown) {
+  const response = await fetch(path, { method, cache: "no-store", ...(value === undefined ? {} : { headers: { "Content-Type": "application/json" }, body: JSON.stringify(value) }) });
+  const body = await response.json();
+  if (!response.ok) throw new Error(body.error || "Your workspace could not complete this operation.");
+  return body;
+}
+export async function loadServerState() {
+  const scope = workspaceScope, generation = workspaceGeneration;
+  const state = await serverRequest("/api/workspace/state");
+  if (!scope || scope !== workspaceScope || generation !== workspaceGeneration) return;
+  serverMode = true;
+  memory.set(DRAFTS_KEY, JSON.stringify(state.drafts)); memory.set(BRAND_KEY, JSON.stringify(state.brand)); memory.set(REMINDERS_KEY, JSON.stringify(state.reminders));
+  preferencesRevision = state.preferencesRevision;
+  memory.set(SUMMARY_KEY, JSON.stringify(state.summary));
+  announce();
+}
+export function legacyWorkspaceDrafts() {
+  if (typeof window === "undefined" || !workspaceScope) return [];
+  try { return parseDrafts(window.localStorage.getItem(`${DRAFTS_KEY}:${workspaceScope}`)); } catch { return []; }
+}
+export function pendingLegacyDrafts() {
+  const saved = new Set(parseDrafts(rawValue(DRAFTS_KEY)).map(draft => draft.id));
+  return legacyWorkspaceDrafts().filter(draft => !saved.has(draft.id));
+}
 const scopedKey = (key: string) => workspaceScope ? `${key}:${workspaceScope}` : null;
 
 const record = (value: unknown): value is Record<string, unknown> => typeof value === "object" && value !== null && !Array.isArray(value);
@@ -67,6 +99,7 @@ function isReminders(value: unknown): value is ReminderSettings {
 }
 function rawValue(key: string): string | null {
   if (typeof window === "undefined") return null;
+  if (serverMode) return memory.get(key) ?? null;
   const scoped = scopedKey(key);
   if (!scoped) return null;
   try { return window.localStorage.getItem(scoped); } catch { return null; }
@@ -100,6 +133,10 @@ export function useDrafts(): Draft[] {
   const raw = useRaw(DRAFTS_KEY);
   return useMemo(() => parseDrafts(raw), [raw]);
 }
+export function useInvoiceSummary(): InvoiceSummary {
+  const raw = useRaw(SUMMARY_KEY);
+  return useMemo(() => Array.isArray(parse(raw)) ? parse(raw) as InvoiceSummary : [], [raw]);
+}
 export function useBrand(): BrandSettings | null {
   const raw = useRaw(BRAND_KEY);
   return useMemo(() => { const value = parse(raw); return isBrand(value) ? value : null; }, [raw]);
@@ -125,17 +162,45 @@ function write(key: string, value: unknown) {
 }
 export function saveDraft(draft: Draft) {
   if (!isDraft(draft)) throw new Error("This draft contains invalid data. Check the invoice fields before saving.");
+  if (serverMode) {
+    const scope = workspaceScope, generation = workspaceGeneration;
+    return serverRequest("/api/invoices", "POST", draft).then(({ invoice, summary }: { invoice: Draft; summary: InvoiceSummary }) => {
+      if (scope !== workspaceScope || generation !== workspaceGeneration) throw new Error("Your workspace changed. Reopen the invoice.");
+      const current = parseDrafts(rawValue(DRAFTS_KEY));
+      memory.set(DRAFTS_KEY, JSON.stringify([invoice, ...current.filter(item => item.id !== invoice.id)])); memory.set(SUMMARY_KEY, JSON.stringify(summary)); announce(); return invoice;
+    });
+  }
   const current = parseDrafts(rawValue(DRAFTS_KEY));
   write(DRAFTS_KEY, [draft, ...current.filter(item => item.id !== draft.id)]);
 }
 export function deleteDraft(id: string) {
+  if (serverMode) {
+    const draft = parseDrafts(rawValue(DRAFTS_KEY)).find(value => value.id === id), scope = workspaceScope, generation = workspaceGeneration;
+    if (!draft) throw new Error("Reload this invoice before archiving.");
+    return serverRequest(`/api/invoices/${encodeURIComponent(id)}`, "DELETE", { revision: draft.revision }).then(({ invoice, summary }: { invoice: Draft; summary: InvoiceSummary }) => {
+      if (scope !== workspaceScope || generation !== workspaceGeneration) throw new Error("Your workspace changed. Reopen the invoice.");
+      memory.set(DRAFTS_KEY, JSON.stringify(parseDrafts(rawValue(DRAFTS_KEY)).filter(value => value.id !== id))); memory.set(SUMMARY_KEY, JSON.stringify(summary)); announce(); return invoice;
+    });
+  }
   write(DRAFTS_KEY, parseDrafts(rawValue(DRAFTS_KEY)).filter(draft => draft.id !== id));
+}
+function saveServerPreferences(value: { brand?: BrandSettings; reminders?: ReminderSettings }) {
+  const scope = workspaceScope, generation = workspaceGeneration;
+  return serverRequest("/api/workspace/state", "POST", { ...value, revision: preferencesRevision }).then(result => {
+    if (scope !== workspaceScope || generation !== workspaceGeneration) throw new Error("Your workspace changed. Reopen the settings.");
+    preferencesRevision = result.revision;
+    if (result.brand) memory.set(BRAND_KEY, JSON.stringify(result.brand));
+    if (result.reminders) memory.set(REMINDERS_KEY, JSON.stringify(result.reminders));
+    announce();
+  });
 }
 export function saveBrand(settings: BrandSettings) {
   if (!isBrand(settings)) throw new Error("Check your brand settings and use a valid colour and PNG or JPG logo.");
+  if (serverMode) return saveServerPreferences({ brand: settings });
   write(BRAND_KEY, settings);
 }
 export function saveReminders(settings: ReminderSettings) {
   if (!isReminders(settings)) throw new Error("Check your reminder days and minimum amount before saving.");
+  if (serverMode) return saveServerPreferences({ reminders: settings });
   write(REMINDERS_KEY, settings);
 }

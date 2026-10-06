@@ -3,6 +3,8 @@ import { useState, type FormEvent } from "react";
 import AppShell from "../../components/app-shell";
 import styles from "../../vault.module.css";
 import formStyles from "../../auth.module.css";
+import AuthenticatorPanel from "../../components/authenticator-panel";
+import ProtectedExport from "../../components/protected-export";
 export default function Page() {
   const [busy, setBusy] = useState(false),
     [message, setMessage] = useState("");
@@ -60,11 +62,21 @@ export default function Page() {
       setBusy(false);
     }
   }
+  async function privacyRequest(kind: string) {
+    if (kind === "deletion" && !window.confirm("Record a deletion request for review? Financial records will be retained until applicable obligations are checked.")) return;
+    setBusy(true); setMessage("");
+    try {
+      const response = await fetch("/api/workspace/privacy", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ kind }) });
+      const value = await response.json(); if (!response.ok) throw new Error(value.error); setMessage(value.message);
+    } catch (error) { setMessage(error instanceof Error ? error.message : "Unable to record this request."); }
+    finally { setBusy(false); }
+  }
   return (
     <AppShell
       title="Keep your space secure."
       subtitle="Manage your password and account sessions."
     >
+      <AuthenticatorPanel />
       <section className={styles.panel} data-glow="true">
         <h2>Change password</h2>
         <form className={formStyles.form} onSubmit={change}>
@@ -115,9 +127,10 @@ export default function Page() {
         </button>
       </section>
       {message && <p role="status">{message}</p>}
+      <section className={styles.panel}><details><summary>Privacy and workspace records</summary><p>Download a record summary or request operator review. Financial evidence is retained until its obligations have been checked.</p><ProtectedExport href="/api/workspace/privacy" filename="invoiceflow-workspace-summary.json" permission="workspace.export">Download workspace summary</ProtectedExport><p>Full access or correction requests can include information outside this summary.</p><button className={styles.secondary} disabled={busy} onClick={() => privacyRequest("access")}>Request access review</button>{" "}<button className={styles.secondary} disabled={busy} onClick={() => privacyRequest("correction")}>Request correction</button>{" "}<button className={styles.secondary} disabled={busy} onClick={() => privacyRequest("deletion")}>Request deletion review</button></details></section>
       <p className={styles.footnote}>
-        Sessions expire after seven days. Password recovery by email is deferred
-        until email delivery is configured.
+        Sessions expire after seven days. Recovery by email requires configured delivery.
+        Recovery codes restore sign-in; an authenticator is still needed for sensitive actions.
       </p>
     </AppShell>
   );

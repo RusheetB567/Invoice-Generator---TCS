@@ -1,6 +1,12 @@
 import { betterAuth } from "better-auth";
+import { twoFactor } from "better-auth/plugins";
 import { drizzleAdapter } from "@better-auth/drizzle-adapter";
 import { drizzle } from "drizzle-orm/pglite";
+import { drizzle as postgresDrizzle } from "drizzle-orm/node-postgres";
+import type { PGlite } from "@electric-sql/pglite";
+import type { Pool } from "pg";
+import { applicationOrigin, assertProductionConfigured, production } from "./config";
+import { emailConfigured, sendAccountEmail } from "./email";
 import { readFile, writeFile } from "node:fs/promises";
 import { randomBytes } from "node:crypto";
 import path from "node:path";
@@ -8,7 +14,7 @@ import { database, dataDirectory, VaultError } from "./vault";
 import * as schema from "./auth-schema";
 import { z } from "zod";
 
-async function signingSecret() {
+export async function signingSecret() {
   if (process.env.BETTER_AUTH_SECRET) {
     if (process.env.BETTER_AUTH_SECRET.length < 32)
       throw new VaultError(
@@ -44,7 +50,8 @@ async function createAuth(origin: string) {
     appName: "TCS InvoiceFlow",
     baseURL: origin,
     secret: await signingSecret(),
-    database: drizzleAdapter(drizzle(client), {
+    plugins: [twoFactor({ issuer: "TCS InvoiceFlow", skipVerificationOnEnable: false, accountLockout: { enabled: true, maxFailedAttempts: 5, durationSeconds: 900 } })],
+    database: drizzleAdapter(client.kind === "local" ? drizzle(client.native as PGlite) : postgresDrizzle(client.native as Pool), {
       provider: "pg",
       schema,
       transaction: true,
@@ -53,8 +60,12 @@ async function createAuth(origin: string) {
       enabled: true,
       minPasswordLength: 12,
       maxPasswordLength: 128,
-      requireEmailVerification: false,
+      requireEmailVerification: production() || emailConfigured(),
+      revokeSessionsOnPasswordReset: true,
+      resetPasswordTokenExpiresIn: 1800,
+      ...(emailConfigured() ? { sendResetPassword: async ({ user, url }: { user: { email: string }; url: string }) => sendAccountEmail(user.email, url, "reset") } : {}),
     },
+    ...(emailConfigured() ? { emailVerification: { sendOnSignUp: true, expiresIn: 3600, sendVerificationEmail: async ({ user, url }: { user: { email: string }; url: string }) => sendAccountEmail(user.email, url, "verify") } } : {}),
     user: {
       additionalFields: {
         firstName: {
@@ -80,11 +91,17 @@ async function createAuth(origin: string) {
     },
     rateLimit: {
       enabled: true,
+      storage: "database",
       window: 60,
       max: 60,
       customRules: {
         "/sign-up/email": { window: 60, max: 5 },
         "/sign-in/email": { window: 60, max: 10 },
+        "/request-password-reset": { window: 60, max: 3 },
+        "/send-verification-email": { window: 60, max: 3 },
+        "/two-factor/verify-totp": { window: 60, max: 5 },
+        "/two-factor/verify-backup-code": { window: 60, max: 5 },
+        "/two-factor/enable": { window: 60, max: 3 },
       },
     },
     advanced: {
@@ -99,17 +116,9 @@ const state = globalThis as unknown as {
   invoiceAuth?: Map<string, ReturnType<typeof createAuth>>;
 };
 export async function getAuth(origin: string) {
-  const url = new URL(origin);
-  const local = ["localhost", "127.0.0.1", "[::1]"].includes(url.hostname);
-  const configured = process.env.BETTER_AUTH_URL;
-  if (!local || !["development", "test"].includes(process.env.NODE_ENV ?? ""))
-    throw new VaultError(
-      "This local installation is not enabled for shared hosting. Configure production database and storage first.",
-      503,
-    );
-  if (configured && new URL(configured).origin !== url.origin)
-    throw new VaultError("This application origin is not configured.", 403);
-  const key = `${dataDirectory()}:${url.origin}`;
+  assertProductionConfigured();
+  const url = new URL(applicationOrigin(origin));
+  const key = `backend-v3:${dataDirectory()}:${url.origin}`;
   // Ensure additive migrations also run when Next.js reuses an auth singleton after HMR.
   await database();
   state.invoiceAuth ??= new Map();

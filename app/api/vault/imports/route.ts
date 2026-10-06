@@ -8,11 +8,11 @@ export async function GET(request: Request) {
 }
 export async function POST(request: Request) {
   try {
-    localOnly(request); const { workspace } = await requireWorkspace(request, true);
+    localOnly(request); const { workspace, identity } = await requireWorkspace(request, true);
     const reader = request.body?.getReader(); if (!reader) throw new VaultError("Choose an Excel workbook.");
     const chunks: Uint8Array[] = []; let length = 0;
     try { while (true) { const next = await reader.read(); if (next.done) break; length += next.value.length; if (length > MAX_XLSX_BYTES) { await reader.cancel(); throw new VaultError("Choose an .xlsx file up to 5 MB.", 413); } chunks.push(next.value); } } finally { reader.releaseLock(); }
-    const result = await createImport(workspace.id, Buffer.concat(chunks), new URL(request.url).searchParams.get("name") ?? "");
+    const result = await createImport(workspace.id, Buffer.concat(chunks), new URL(request.url).searchParams.get("name") ?? "", identity.user.id);
     return Response.json(result, { status: result.duplicate ? 200 : 201, headers: { "Cache-Control": "no-store" } });
   } catch (error) { return safeError(error); }
 }

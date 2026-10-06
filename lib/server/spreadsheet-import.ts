@@ -1,14 +1,15 @@
 import { createHash, randomUUID } from "node:crypto";
-import { writeFile } from "node:fs/promises";
-import path from "node:path";
+import { storeOriginal } from "./object-storage";
+import { audit } from "./audit";
+
 import { z } from "zod";
-import { database, dataDirectory, VaultError } from "./vault";
+import { database, VaultError } from "./vault";
 import { readXlsx } from "./xlsx-reader";
 import { recordKey, type SpreadsheetBatch } from "../domain/spreadsheet-records";
 import { taxRecordSchema, type VaultDocument } from "../domain/tax-record";
 async function importsDatabase() {
   const db = await database();
-  await db.exec(`CREATE TABLE IF NOT EXISTS vault_spreadsheet_import (id UUID PRIMARY KEY, workspace_id UUID NOT NULL REFERENCES business_workspace(id), hash TEXT NOT NULL, payload JSONB NOT NULL, created_at TIMESTAMPTZ NOT NULL DEFAULT now(), UNIQUE(workspace_id,hash));`);
+
   return db;
 }
 const uuid = z.string().uuid();
@@ -21,19 +22,23 @@ export async function getImport(workspaceId: string, id: string): Promise<Spread
   if (!result.rows[0]) throw new VaultError("Import not found.", 404);
   return result.rows[0].payload;
 }
-export async function createImport(workspaceId: string, bytes: Buffer, name: string) {
+export async function createImport(workspaceId: string, bytes: Buffer, name: string, actorId = "system") {
   if (!/\.xlsx$/i.test(name) || name.length > 180 || /[\x00-\x1f]/.test(name)) throw new VaultError("Choose a standard .xlsx file with a short filename.");
-  const sheets = await readXlsx(bytes), hash = createHash("sha256").update(bytes).digest("hex"), db = await importsDatabase();
+  const hash = createHash("sha256").update(bytes).digest("hex"), db = await importsDatabase();
   const old = await db.query<{ payload: SpreadsheetBatch }>("SELECT payload FROM vault_spreadsheet_import WHERE workspace_id=$1 AND hash=$2", [workspaceId, hash]);
   if (old.rows[0]) return { batch: old.rows[0].payload, duplicate: true };
-  const id = randomUUID(), batch: SpreadsheetBatch = { id, name, hash, createdAt: new Date().toISOString(), sheets, committedRows: {} };
-  await writeFile(path.join(dataDirectory(), "documents", id), bytes, { flag: "wx" });
-  const saved = await db.query<{ payload: SpreadsheetBatch }>("INSERT INTO vault_spreadsheet_import(id,workspace_id,hash,payload) VALUES($1,$2,$3,$4) ON CONFLICT(workspace_id,hash) DO NOTHING RETURNING payload", [id, workspaceId, hash, JSON.stringify(batch)]);
-  if (!saved.rows[0]) return { batch: (await db.query<{ payload: SpreadsheetBatch }>("SELECT payload FROM vault_spreadsheet_import WHERE workspace_id=$1 AND hash=$2", [workspaceId, hash])).rows[0].payload, duplicate: true };
+  const id = randomUUID();
+  await storeOriginal(workspaceId, id, bytes);
+  const sheets = await readXlsx(bytes), batch: SpreadsheetBatch = { id, name, hash, createdAt: new Date().toISOString(), sheets, committedRows: {} };
+  return db.transaction(async tx => {
+  const saved = await tx.query<{ payload: SpreadsheetBatch }>("INSERT INTO vault_spreadsheet_import(id,workspace_id,hash,payload) VALUES($1,$2,$3,$4) ON CONFLICT(workspace_id,hash) DO NOTHING RETURNING payload", [id, workspaceId, hash, JSON.stringify(batch)]);
+  if (!saved.rows[0]) return { batch: (await tx.query<{ payload: SpreadsheetBatch }>("SELECT payload FROM vault_spreadsheet_import WHERE workspace_id=$1 AND hash=$2", [workspaceId, hash])).rows[0].payload, duplicate: true };
+  await audit(tx, workspaceId, actorId, "records.import.upload", id);
   return { batch, duplicate: false };
+  });
 }
 export const commitImportSchema = z.object({ sheet: z.string().min(1).max(100), reviewed: z.literal(true), rows: z.array(z.object({ number: z.number().int().min(2).max(1010), record: taxRecordSchema }).strict()).min(1).max(1000) }).strict();
-export async function commitImport(workspaceId: string, id: string, raw: unknown) {
+export async function commitImport(workspaceId: string, id: string, raw: unknown, actorId = "system") {
   const checked = commitImportSchema.safeParse(raw);
   if (!checked.success) throw new VaultError(checked.error.issues.slice(0, 5).map(issue => `${issue.path.join(".")}: ${issue.message}`).join(" "), 422);
   await getImport(workspaceId, id);
@@ -57,6 +62,7 @@ export async function commitImport(workspaceId: string, id: string, raw: unknown
       keys.set(key, docId); batch.committedRows[rowKey] = docId; outcome.saved++; outcome.ids.push(docId);
     }
     await tx.query("UPDATE vault_spreadsheet_import SET payload=$1 WHERE id=$2 AND workspace_id=$3", [JSON.stringify(batch), id, workspaceId]);
+    await audit(tx, workspaceId, actorId, "records.import.confirm", id, { saved: outcome.saved, duplicates: outcome.duplicates });
     return { ...outcome, batch };
   });
 }

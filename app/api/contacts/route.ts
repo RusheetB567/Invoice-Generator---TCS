@@ -25,7 +25,7 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   try {
     sameOriginWrite(request);
-    const { workspace } = await requireWorkspace(request, true);
+    const { workspace } = await requireWorkspace(request, "contacts.write");
     if (Number(request.headers.get("content-length")) > 10000)
       throw new VaultError("Contact details are too long.", 413);
     const body = await boundedJson(request, 10000);

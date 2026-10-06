@@ -38,15 +38,15 @@ export default function SettingsPage() {
     } catch (error) { setError(true); setMessage(error instanceof Error ? error.message : "The logo could not be loaded."); }
     finally { setBusy(false); }
   };
-  const submit = (event: FormEvent<HTMLFormElement>) => {
+  const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (!current.company.trim()) { setError(true); setMessage("Enter your company name before saving."); return; }
     if (!/^#[0-9a-f]{6}$/i.test(current.brand)) { setError(true); setMessage("Use a six-digit colour such as #7240c4."); return; }
-    try { saveBrand({ ...current, company: current.company.trim(), brand: current.brand.toLowerCase() }); setError(false); setMessage("Your brand is saved in this browser. In the creator, choose Apply saved branding to use it."); setEdits(null); }
+    try { await saveBrand({ ...current, company: current.company.trim(), brand: current.brand.toLowerCase() }); setError(false); setMessage("Your brand is saved to your private workspace. In the creator, choose Apply saved branding to use it."); setEdits(null); }
     catch (error) { setError(true); setMessage(error instanceof Error ? error.message : "Your brand could not be saved."); }
   };
   return <AppShell title="A brand that's unmistakably you." subtitle="Your company identity, translated into every invoice. Personalise the details and preview the result.">
-    <div className={styles.notice}><span aria-hidden="true">✦</span><span>InvoiceFlow is a TCS platform. Your own company branding is applied to your invoices. Settings are saved locally on this browser.</span></div>
+    <div className={styles.notice}><span aria-hidden="true">✦</span><span>InvoiceFlow is a TCS platform. Your own company branding is applied to your invoices. Settings are saved to your private workspace.</span></div>
     <form onSubmit={submit}>
       <div className={styles.formGrid}>
         <section className={styles.panel} data-glow="true" aria-labelledby="business-heading"><div className={styles.panelHeading}><h2 className={styles.panelTitle} id="business-heading">Company identity</h2><span className={styles.eyebrow}>01 / DETAILS</span></div><div className={styles.fields}>

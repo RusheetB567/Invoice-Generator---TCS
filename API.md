@@ -1,19 +1,20 @@
-# API organisation
+# Backend API
+All private endpoints use current server sessions and membership, no-store responses, scoped resource IDs and bounded request bodies. Mutations require the exact trusted origin. Unknown auth endpoints are denied.
 
-Authenticated local business APIs are now implemented: `/api/auth/*`, `/api/workspace`, `/api/contacts`, `/api/enquiries` and workspace-scoped `/api/vault/*`. See ACCOUNTS-WORKSPACES.md for session/role checks and API boundaries. Creator drafts use browser storage; local document-vault APIs now persist reviewed uploads in embedded PostgreSQL. See RECORDS-VAULT.md for the implemented endpoints and development-only boundary.
+- /api/auth: allowlisted signup/signin/signout, account name updates, verification/reset callbacks, password changes, revoke-other-sessions and TOTP enrollment/verification/recovery/disable/code regeneration. Secrets/recovery codes are returned only during enrollment or an approved regeneration. Session tokens are removed from public JSON.
+- GET /api/account/security: personal MFA/recent-proof state and sanitised own session metadata; no session token, TOTP secret or stored recovery codes.
+- GET/POST /api/workspace: workspace onboarding/profile; changed payment details require recent TOTP.
+- GET/POST /api/workspace/state: creator drafts/summary and business defaults; preferences require business.manage, payment changes also recent TOTP.
+- POST /api/invoices: validated create/update with expected revision; number allocation and totals are server-owned. Changed invoice payment instructions require business.manage and recent TOTP.
+- GET/DELETE /api/invoices/[id]: scoped snapshot/archive. Archive requires invoice.archive; history remains.
+- GET /api/invoices/[id]/pdf: private canonical PDF for the saved revision.
+- /api/vault and /api/vault/[id]: quarantined upload, metadata, review/confirmation, private source and bounded preview.
+- /api/vault/imports and /api/vault/imports/[id]: private Excel upload, mapped review and atomic confirmation.
+- GET /api/vault/template: blank safe Excel import template.
+- GET /api/vault/export: records.export plus recent TOTP; reviewed confirmed records only.
+- GET/POST /api/workspace/privacy: administrator summary export with recent TOTP; review requests do not delete evidence or send email.
+- POST /api/tax/calculate: authenticated calculation with year/mode validation. No tax lodgement.
+- Existing contacts/enquiries endpoints remain private with read/write guards; these enhanced areas remain outside standard navigation.
 
-Planned route handlers are thin adapters around validated services:
-
-- `/api/auth/*`: auth library handlers.
-- `/api/businesses/:businessId`: profile and membership-authorised settings.
-- `/api/businesses/:businessId/contacts`: client/supplier records.
-- `/api/businesses/:businessId/invoices`: issued/received invoice CRUD and revisions.
-- `/api/businesses/:businessId/invoices/:invoiceId/payments`: transaction-safe payment records.
-- `/api/businesses/:businessId/documents`: upload metadata and authorised retrieval.
-- `/api/businesses/:businessId/documents/:documentId/review`: extraction candidate/review/confirmation.
-- Export/report endpoints follow after confirmed financial records exist.
-
-Each route obtains a server session, verifies membership, validates input, calls a service and returns a safe response. Use 401 for missing session, 404 for inaccessible resources, 422 for invalid inputs and 409 for revision/number conflicts. Never leak another business's existence through error messages.
-
-Serialize monetary integers as decimal strings in JSON. Use ISO date-only strings for billing dates, UTC timestamps for events. Never accept client totals as authoritative. Avoid returning object storage paths or raw provider errors.
+Errors: 401 sign-in, 403 permission/MFA/step-up, 409 revision conflict/replayed code, 413 size, 422 validation, 429 attempt limits, 503 missing production service. Sensitive actions return STEP_UP_REQUIRED without financial payload. Reauthenticate and retry; never bypass that error in a client.
 

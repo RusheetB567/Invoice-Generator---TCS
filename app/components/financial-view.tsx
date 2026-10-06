@@ -8,6 +8,7 @@ import { useVault } from "../../lib/use-vault";
 import { allocations, financialYear } from "../../lib/domain/tax-record";
 import { hundredths } from "../../lib/domain/invoice-math";
 import styles from "../vault.module.css";
+import ProtectedExport from "./protected-export";
 export default function FinancialView({
   mode,
 }: {
@@ -103,12 +104,9 @@ export default function FinancialView({
             ))}
           </select>
         </label>
-        <Link
-          className={styles.secondary}
-          href={`/api/vault/export?year=${encodeURIComponent(year)}`}
-        >
+        <ProtectedExport href={`/api/vault/export?year=${encodeURIComponent(year)}`} filename="TCS-InvoiceFlow-records.xlsx">
           Export Excel ↗
-        </Link>
+        </ProtectedExport>
       </div>
       <div className={styles.flow}>
         {metrics.map(([label, value]) => (

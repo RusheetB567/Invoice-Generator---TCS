@@ -2,10 +2,12 @@
 import Link from "next/link";
 import { useState, type FormEvent } from "react";
 import styles from "../auth.module.css";
-export default function AuthForm({ signup }: { signup: boolean }) {
+export default function AuthForm({ signup, emailEnabled = false }: { signup: boolean; emailEnabled?: boolean }) {
   const [pending, setPending] = useState(false),
     [error, setError] = useState(""),
     [show, setShow] = useState(false);
+  const [success, setSuccess] = useState("");
+  const [challenge, setChallenge] = useState(false), [recovery, setRecovery] = useState(false);
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (pending) return;
@@ -16,15 +18,15 @@ export default function AuthForm({ signup }: { signup: boolean }) {
       lastName = String(fields.get("lastName") || "").trim();
     try {
       const response = await fetch(
-        `/api/auth/${signup ? "sign-up" : "sign-in"}/email`,
+        challenge ? `/api/auth/two-factor/${recovery ? "verify-backup-code" : "verify-totp"}` : `/api/auth/${signup ? "sign-up" : "sign-in"}/email`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
+          body: JSON.stringify(challenge ? { code: String(fields.get("code") || "").trim() } : {
             email: String(fields.get("email")).trim(),
             password: fields.get("password"),
             ...(signup
-              ? { firstName, lastName, name: `${firstName} ${lastName}` }
+              ? { firstName, lastName, name: `${firstName} ${lastName}`, callbackURL: "/sign-in" }
               : {}),
           }),
         },
@@ -34,6 +36,8 @@ export default function AuthForm({ signup }: { signup: boolean }) {
         throw new Error(
           body.message || body.error || "Check your details and try again.",
         );
+      if (body.twoFactorRedirect) { setChallenge(true); setPending(false); return; }
+      if (signup && emailEnabled && !body.authenticated) { setSuccess("Account created. Check your email to verify your address, then sign in to set up your business."); setPending(false); return; }
       /* Full navigation discards private route caches after an authentication or workspace change. */
       // eslint-disable-next-line @next/next/no-location-assign-relative-destination
       window.location.assign("/onboarding");
@@ -88,14 +92,14 @@ export default function AuthForm({ signup }: { signup: boolean }) {
           </ol>
         </div>
         <section className={styles.card}>
-          <h2>{signup ? "Create your account" : "Sign in to InvoiceFlow"}</h2>
+          <h2>{challenge ? "Verify your sign-in" : signup ? "Create your account" : "Sign in to InvoiceFlow"}</h2>
           <p>
             {signup
               ? "A few details, then we’ll make this space yours."
               : "Continue to your business workspace."}
           </p>
           <form className={styles.form} onSubmit={submit}>
-            {signup && (
+            {challenge ? <><label className={styles.field}>{recovery ? "Recovery code" : "Authenticator code"}<input name="code" autoComplete="one-time-code" inputMode={recovery ? "text" : "numeric"} required maxLength={32} /></label><details><summary>Use account recovery</summary><label><input type="checkbox" checked={recovery} onChange={event => setRecovery(event.target.checked)} /> Use a saved recovery code</label><p>Recovery restores sign-in. Sensitive actions still require your authenticator.</p></details></> : <>{signup && (
               <div className={styles.pair}>
                 <label className={styles.field}>
                   First name
@@ -153,15 +157,17 @@ export default function AuthForm({ signup }: { signup: boolean }) {
                 Use 12 or more characters. A unique passphrase works well.
               </span>
             )}
+            </>}
             {error && (
               <p role="alert" className={styles.error}>
                 {error}
               </p>
             )}
+            {success && <p role="status">{success}</p>}
             <button className={styles.primary} disabled={pending}>
               {pending
                 ? "Please wait…"
-                : signup
+                : challenge ? "Verify and continue" : signup
                   ? "Create account →"
                   : "Sign in →"}
             </button>
@@ -176,8 +182,8 @@ export default function AuthForm({ signup }: { signup: boolean }) {
             </Link>
           </p>
           <p className={styles.note}>
-            Email verification and password recovery will become available when
-            email delivery is configured. No verification email is sent yet.
+            {emailEnabled ? <Link href="/account-help">Reset password or resend verification</Link> : "Email delivery is not configured on this local installation. Verification and password recovery are unavailable."}
+            {" "}<Link href="/privacy">Privacy information</Link>
           </p>
         </section>
       </main>

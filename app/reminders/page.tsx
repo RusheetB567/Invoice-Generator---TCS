@@ -21,11 +21,11 @@ export default function RemindersPage() {
     if (current.days.length >= 20) { setError(true); setMessage("You can configure up to 20 reminder days."); return; }
     change("days", [...current.days, Number(day)].sort((a, b) => a - b)); setError(false);
   };
-  const submit = (event: FormEvent<HTMLFormElement>) => {
+  const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (current.enabled && current.days.length === 0) { setError(true); setMessage("Add at least one day to your reminder configuration."); return; }
     if (!/^\d{1,9}(\.\d{1,2})?$/.test(current.minimumAmount)) { setError(true); setMessage("Enter a non-negative minimum amount with up to two decimal places."); return; }
-    try { saveReminders(current); setEdits(null); setError(false); setMessage("Reminder settings saved locally. Emails are not scheduled or sent."); } catch (error) { setError(true); setMessage(error instanceof Error ? error.message : "Reminder settings could not be saved."); }
+    try { await saveReminders(current); setEdits(null); setError(false); setMessage("Reminder settings saved to your private workspace. Emails are not scheduled or sent."); } catch (error) { setError(true); setMessage(error instanceof Error ? error.message : "Reminder settings could not be saved."); }
   };
   return <AppShell title="A gentler nudge. On your terms." subtitle="Design a reminder timeline that suits your business. Set the days, choose what to include, and save the configuration.">
     <div className={styles.notice}><span aria-hidden="true">◷</span><span><strong>Configuration preview only.</strong> Emails are not scheduled or sent. These settings prepare a future reminder workflow.</span></div>

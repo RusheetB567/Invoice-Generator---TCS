@@ -2,11 +2,17 @@ import { randomUUID } from "node:crypto";
 import { getAuth } from "./auth";
 import { database, VaultError } from "./vault";
 import type { BusinessProfile, BusinessWorkspace } from "../domain/business";
+import { production, requestOrigin } from "./config";
+import { limitWorkspace } from "./rate-limit";
+import { audit } from "./audit";
+import { requirePermission, type Permission } from "./permissions";
+import { requireMfaSession } from "./assurance";
 export async function currentIdentity(request: Request) {
   const session = await (
-    await getAuth(new URL(request.url).origin)
+    await getAuth(requestOrigin(request))
   ).api.getSession({ headers: request.headers });
   if (!session) throw new VaultError("Sign in to access your workspace.", 401);
+  if (production() && !session.user.emailVerified) throw new VaultError("Verify your email before accessing your business workspace.", 403);
   return session;
 }
 export async function findWorkspace(userId: string) {
@@ -40,6 +46,7 @@ export async function createWorkspace(userId: string, name: string) {
       "INSERT INTO workspace_membership(workspace_id,user_id,role) VALUES($1,$2,'OWNER')",
       [id, userId],
     );
+    await audit(tx, id, userId, "workspace.create", id);
     return id;
   });
 }
@@ -47,9 +54,8 @@ export async function finishOnboarding(
   userId: string,
   profile: BusinessProfile,
 ) {
-  const result = await (
-    await database()
-  ).query(
+  await (await database()).transaction(async tx => {
+  const result = await tx.query(
     "UPDATE business_workspace b SET profile=$2,onboarding_complete=TRUE FROM workspace_membership m WHERE m.workspace_id=b.id AND m.user_id=$1 AND m.role IN ('OWNER','ADMIN') RETURNING b.id",
     [userId, JSON.stringify(profile)],
   );
@@ -58,19 +64,27 @@ export async function finishOnboarding(
       "You do not have permission to update this business.",
       403,
     );
+  await audit(tx, String((result.rows[0] as { id: string }).id), userId, "business.profile.update");
+  });
 }
-export async function requireWorkspace(request: Request, write = false) {
+export async function requireWorkspace(request: Request, access: boolean | Permission = false) {
   const identity = await currentIdentity(request);
   const workspace = await findWorkspace(identity.user.id);
   if (!workspace?.onboarding_complete)
     throw new VaultError("Complete your organisation setup first.", 409);
-  if (write && workspace.role === "VIEWER")
-    throw new VaultError("This account has read-only access.", 403);
+  await limitWorkspace(identity.user.id, workspace.id, request);
+  try {
+    requirePermission(workspace, typeof access === "string" ? access : access ? "invoice.write" : "invoice.read");
+    await requireMfaSession(identity, workspace.role);
+  } catch (error) {
+    if (error instanceof VaultError) await audit(await database(), workspace.id, identity.user.id, "security.access_denied", undefined, { code: error.code || "DENIED" });
+    throw error;
+  }
   return { identity, workspace };
 }
 export function sameOriginWrite(request: Request) {
   if (
-    request.headers.get("origin") !== new URL(request.url).origin ||
+    request.headers.get("origin") !== requestOrigin(request) ||
     request.headers.get("sec-fetch-site") === "cross-site"
   )
     throw new VaultError("This request is not allowed.", 403);

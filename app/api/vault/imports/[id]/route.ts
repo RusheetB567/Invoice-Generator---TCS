@@ -8,5 +8,5 @@ export async function GET(request: Request, context: Context) {
   try { localOnly(request); const { workspace } = await requireWorkspace(request); const { id } = await context.params; return Response.json({ batch: await getImport(workspace.id, id) }, { headers: { "Cache-Control": "no-store" } }); } catch (error) { return safeError(error); }
 }
 export async function POST(request: Request, context: Context) {
-  try { localOnly(request); const { workspace } = await requireWorkspace(request, true); const { id } = await context.params; return Response.json(await commitImport(workspace.id, id, await boundedJson(request, 4 * 1024 * 1024)), { headers: { "Cache-Control": "no-store" } }); } catch (error) { return safeError(error); }
+  try { localOnly(request); const { workspace, identity } = await requireWorkspace(request, true); const { id } = await context.params; return Response.json(await commitImport(workspace.id, id, await boundedJson(request, 4 * 1024 * 1024), identity.user.id), { headers: { "Cache-Control": "no-store" } }); } catch (error) { return safeError(error); }
 }

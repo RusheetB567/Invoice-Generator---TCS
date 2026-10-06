@@ -30,7 +30,7 @@ export default function Page() {
       if (!response.ok) throw new Error(body.error);
       const brand = readBrand();
       if (brand)
-        saveBrand({
+        await saveBrand({
           ...brand,
           company: String(next.legalName),
           companyAddress: String(next.address),
@@ -39,7 +39,7 @@ export default function Page() {
           payment: String(next.payment),
         });
       setMessage(
-        "Business profile saved. Your local branding defaults have been updated.",
+        "Business profile saved. Your branding defaults have been updated.",
       );
       router.refresh();
     } catch (error) {

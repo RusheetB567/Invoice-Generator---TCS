@@ -9,7 +9,7 @@ export default async function PrivateLayout({
   const value = await privateWorkspace();
   return (
     <WorkspaceProvider
-      key={`${value.user.id}:${value.workspace.id}`}
+      key={`${value.user.id}:${value.workspace.id}:${value.securityLocked}`}
       value={value}
     >
       {children}

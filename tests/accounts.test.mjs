@@ -226,10 +226,15 @@ test("real signup, private onboarding, tenant isolation and revoked sessions", a
     assert.equal((await uploadWorkbook(new Request("http://localhost:3199/api/vault/imports?name=fixture.xlsx", { method: "POST", headers: { ...workbookHeaders, origin: "https://foreign.example" }, body: workbookBytes }))).status, 403);
     const approved = await approveWorkbook(new Request(`http://localhost:3199/api/vault/imports/${batch.id}`, { method: "POST", headers: { ...workbookHeaders, "content-type": "application/json" }, body: JSON.stringify({ sheet: "Records", reviewed: true, rows: [{ number: 2, record: { supplier: "API fixture", number: "API-001", issued: "2026-07-01", total: "110", gst: "10", kind: "Expense", category: "Other", treatment: "Needs tax review", businessPercent: "0", gstRegistered: false, claimGst: false, currency: "AUD", notes: "", confirmed: true } }] }) }), context);
     assert.equal(approved.status, 200); const importedId = (await approved.json()).ids[0];
+    assert.equal((await exportRecords(new Request(`http://localhost:3199/api/vault/export?ids=${importedId}`, { headers: { cookie: cookies } }))).status, 403);
+    // Isolated spreadsheet fixture assurance; authenticator proof is independently tested in mfa-access.test.mjs.
+    await db.query("UPDATE auth_user SET two_factor_enabled=TRUE WHERE id=$1", [value.user.id]);
+    await db.query("INSERT INTO auth_assurance(session_id,user_id,method) SELECT id,user_id,'totp' FROM auth_session WHERE user_id=$1", [value.user.id]);
     const download = await exportRecords(new Request(`http://localhost:3199/api/vault/export?ids=${importedId}`, { headers: { cookie: cookies } })); assert.equal(download.status, 200); assert.equal(download.headers.get("cache-control"), "no-store");
     const exportedWorkbook = new ExcelJS.Workbook(); await exportedWorkbook.xlsx.load(await download.arrayBuffer()); assert.equal(exportedWorkbook.getWorksheet("Records").getCell("C2").value, "API-001");
     assert.deepEqual(await originalFile(workspaceA, importedId), Buffer.from(workbookBytes));
     process.env.NODE_ENV = "test";
+    await db.query("UPDATE auth_user SET two_factor_enabled=FALSE WHERE id=$1", [value.user.id]);
     await db.query(
       "UPDATE workspace_membership SET role='VIEWER' WHERE user_id=$1",
       [other.user.id],

@@ -1,27 +1,13 @@
-# Database foundation
+# Database and migrations
+Authoritative financial data lives in PostgreSQL-compatible storage, not Excel. Excel is an import/export format.
 
-`prisma/schema.prisma` is the initial PostgreSQL design, validated with Prisma 7.10.0. This Prisma design has not been applied. The live local SQL migration in lib/server/account-migration.ts now creates auth, workspace, membership, contact and enquiry tables and adds workspace ownership to documents; see ACCOUNTS-WORKSPACES.md. Empty migration directories are not a migration history.
+Versions: 1 accounts/workspaces and legacy vault scope; 2 server invoices/revisions/preferences/audit/object metadata/imports/privacy requests; 3 TOTP encrypted records, session assurance and replay digests. Migration SQL is in lib/server/account-migration.ts, backend-migration.ts and security-migration.ts.
 
-The upload milestone separately uses a local embedded PostgreSQL/PGlite adapter with a `vault_documents` JSONB table. Its originals and data directory are under ignored `storage/`. It is a single-process development adapter, not the Prisma multi-tenant database. See RECORDS-VAULT.md for migration and backup boundaries.
+Local PGlite persists in storage/tax-vault/postgres, unless INVOICEFLOW_DATA_DIR changes it. Never open one persisted PGlite directory from two running processes. Legacy unassigned documents are not exposed to new workspaces. The Prisma schema is a design artifact; it is not the active migration engine.
 
-| Entity | Purpose |
-| --- | --- |
-| User, Session, Account, Verification | Auth provider identities, sessions and expiring verification/reset records |
-| Business, Membership | Company settings, workspace ownership and user roles |
-| Contact | Reusable clients/suppliers within one business |
-| Invoice | Issued/received financial record, dates, currency, totals and party snapshots |
-| InvoiceBlock | Ordered narrative charges; optional quantity/rate for legacy samples |
-| Payment | Actual payments used to calculate the remaining balance |
-| UploadedDocument | Private object key, MIME, hash, size and processing state |
-| ExtractionResult | Unconfirmed structured candidate, raw text and confidence |
+Production uses pg with verified TLS. Configure a migration-only connection privately; run `npm run db:migrate` for pending versions, then `npm run db:migrate -- --apply` after backup/review. Use separate migration and runtime roles. Runtime may perform required application DML but must not create schema objects or update/delete immutable invoice revisions or audit history. Session triggers need permission to insert audit records.
 
-Before the first migration, add reviewed SQL constraints for nonnegative charges/payments, positive document sizes, valid tax basis points (0–10,000), invoice total = subtotal + tax, due date >= issue date, supported currencies, and the issued invoice number uniqueness rule. Prisma does not express every PostgreSQL CHECK or partial index in its schema.
+One account currently owns/belongs to one workspace. Supported roles: OWNER, ADMIN, MEMBER, VIEWER. No role-edit or invitation API exists. Queries explicitly scope by current workspace. PostgreSQL row-level security is not claimed; a future RLS layer needs integration tests before enablement.
 
-Confirm imported totals with the user. Preserve provider candidates separately from confirmed records. Never silently repair a mismatch between the document and calculated amounts.
-
-Membership and business filters are mandatory on every server query, including document/extraction joins. Foreign keys enforce relationship consistency but do not authenticate the caller. Access-control tests must prove that IDs from another business cannot be read, updated, exported or attached.
-
-Financial records use archive/cancel in normal flows. Avoid deleting memberships referenced by invoices; disable access instead. A separate audited data-retention/deletion workflow will be required before public launch. Audit events and export jobs will be added when those services are implemented, rather than creating unused tables now.
-
-Browser drafts are not automatically database records. Provide an explicit validated import after login, recompute totals server-side, preserve content/order, and show a review before transfer. Never clear local drafts until the server confirms successful import.
+The library currently returns the latest 1,000 active creator invoices; dashboard aggregates cover all active invoices. Workspace summaries include up to 500 recent audit events and do not constitute complete legal disclosure. Paging/full historical exports require further work.
 

@@ -1,10 +1,15 @@
-import { pgTable, text, boolean, timestamp } from "drizzle-orm/pg-core";
+import { pgTable, text, boolean, timestamp, integer, bigint } from "drizzle-orm/pg-core";
+export const rateLimit = pgTable("auth_rate_limit", {
+  id: text("id").primaryKey(), key: text("key").notNull().unique(),
+  count: integer("count").notNull(), lastRequest: bigint("last_request", { mode: "number" }).notNull(),
+});
 const date = (name: string) => timestamp(name, { withTimezone: true });
 export const user = pgTable("auth_user", {
   id: text("id").primaryKey(),
   name: text("name").notNull(),
   email: text("email").notNull().unique(),
   emailVerified: boolean("email_verified").notNull(),
+  twoFactorEnabled: boolean("two_factor_enabled").notNull().default(false),
   image: text("image"),
   firstName: text("first_name").notNull(),
   lastName: text("last_name").notNull(),
@@ -47,4 +52,12 @@ export const verification = pgTable("auth_verification", {
   expiresAt: date("expires_at").notNull(),
   createdAt: date("created_at").notNull(),
   updatedAt: date("updated_at").notNull(),
+});
+export const twoFactor = pgTable("auth_two_factor", {
+  id: text("id").primaryKey(),
+  userId: text("user_id").notNull().unique().references(() => user.id, { onDelete: "cascade" }),
+  secret: text("secret").notNull(), backupCodes: text("backup_codes").notNull(),
+  verified: boolean("verified").notNull().default(true),
+  failedVerificationCount: integer("failed_verification_count").notNull().default(0),
+  lockedUntil: date("locked_until"),
 });

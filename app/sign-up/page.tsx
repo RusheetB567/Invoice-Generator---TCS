@@ -1,2 +1,3 @@
 import AuthForm from "../components/auth-form";
-export default function Page() { return <AuthForm signup />; }
+import { emailConfigured } from "../../lib/server/email";
+export default function Page() { return <AuthForm signup emailEnabled={emailConfigured()} />; }
