@@ -14,7 +14,18 @@ export function applicationOrigin(requestOrigin?: string) {
 }
 export function requestOrigin(request: Request) {
   const configured = process.env.BETTER_AUTH_URL;
-  if (!configured) return applicationOrigin(new URL(request.url).origin);
+  if (!configured) {
+    const internal = new URL(request.url), host = request.headers.get("host");
+    if (!host) return applicationOrigin(internal.origin);
+    // Next can use localhost in its internal URL even when the browser uses
+    // 127.0.0.1. Resolve the browser Host, then enforce the loopback allowlist.
+    // Forwarded-host headers never determine the authentication origin.
+    let browser: URL;
+    try { browser = new URL(`${internal.protocol}//${host}`); }
+    catch { throw new VaultError("This application origin is not configured.", 403); }
+    if (browser.host !== host.toLowerCase() || browser.username || browser.password || !["http:", "https:"].includes(browser.protocol) || (!production() && !["localhost", "127.0.0.1", "[::1]"].includes(browser.hostname))) throw new VaultError("This application origin is not configured.", 403);
+    return applicationOrigin(browser.origin);
+  }
   const expected = applicationOrigin(), incomingHost = request.headers.get("host");
   // Next may construct its internal Request URL using the listener hostname.
   // Only the configured public Host is accepted; never trust forwarded-host headers.
